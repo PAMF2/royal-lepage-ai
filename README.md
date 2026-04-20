@@ -34,8 +34,9 @@ Full Verse.ai replacement + integrated brokerage AI stack. Manages 80,000–100,
 | `queue/` | BullMQ + Redis queue — wraps orchestrator for 100k+ scale |
 | `monitoring/` | Conversation logging + system health (Redis-backed) |
 | `roi-calculator/` | Interactive ROI calculator — sales pitch tool for brokerage |
+| `sales-deck/` | Interactive 12-slide sales deck (Next.js, dark theme, keyboard nav) |
 | `campaign-templates/` | SMS/email copy for all 5 campaigns |
-| `docs/` | Scoping, architecture, pricing |
+| `docs/` | Scoping, architecture, pricing, architecture-diagram.html |
 | `infrastructure/` | .env.example + full deployment guide |
 
 ## Phases Covered
@@ -66,6 +67,8 @@ Full Verse.ai replacement + integrated brokerage AI stack. Manages 80,000–100,
 - Queue-based messaging for 100k concurrent leads (`queue/`)
 - Conversation logging + system health monitoring (`monitoring/`)
 - Interactive ROI calculator for brokerage sales pitch (`roi-calculator/`)
+- 12-slide interactive sales deck (`sales-deck/`)
+- Visual architecture diagram (`docs/architecture-diagram.html`)
 
 ## Quick Start
 
