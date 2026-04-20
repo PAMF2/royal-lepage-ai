@@ -4,7 +4,12 @@
   "description": "One-time GHL setup script — creates pipeline, webhooks, and campaigns",
   "type": "module",
   "scripts": {
-    "setup": "tsx src/index.ts"
+    "setup": "tsx src/index.ts",
+    "verify": "tsx src/verify.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "ioredis": "^5.3.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

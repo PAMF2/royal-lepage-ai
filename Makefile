@@ -1,21 +1,27 @@
 # Royal LePage AI Platform — Makefile
 # Usage: make <target>
 
-.PHONY: help setup migrate dev build push health logs
+.PHONY: help setup verify migrate dev build push health logs score reactivate
 
 help:
 	@echo ""
 	@echo "  Royal LePage AI Platform"
 	@echo ""
-	@echo "  make setup      Run GHL one-time setup (pipeline, webhooks, campaigns)"
-	@echo "  make migrate    Import leads from CSV (set LEADS_FILE=path/to/leads.csv)"
+	@echo "  FIRST TIME:"
+	@echo "  make setup      GHL one-time setup (custom fields, pipeline, webhooks, campaigns)"
+	@echo "  make verify     Pre-flight check — all API connections (GHL, Anthropic, IDX, Redis)"
+	@echo "  make migrate    Import leads from CSV (LEADS_FILE=path/to/leads.csv)"
+	@echo ""
+	@echo "  DEVELOPMENT:"
 	@echo "  make dev        Start full stack locally via Docker Compose"
 	@echo "  make build      Build all TypeScript modules"
-	@echo "  make push       Build + push Docker images (set REGISTRY)"
-	@echo "  make score      Run lead scoring (one-off)"
-	@echo "  make reactivate Run reactivation engine (one-off)"
 	@echo "  make health     Check health of all running services"
 	@echo "  make logs       Tail orchestrator logs"
+	@echo ""
+	@echo "  OPERATIONS:"
+	@echo "  make score      Run lead scoring (one-off)"
+	@echo "  make reactivate Run reactivation engine (one-off)"
+	@echo "  make push       Build + push Docker images (REGISTRY=ghcr.io/...)"
 	@echo ""
 
 # ── First-time setup ─────────────────────────────────────────
@@ -23,6 +29,10 @@ help:
 setup:
 	@echo "→ Running GHL one-time setup..."
 	cd ghl-setup && npm install && npm run setup
+
+verify:
+	@echo "→ Running pre-flight checks..."
+	cd ghl-setup && npm install && npm run verify
 
 migrate:
 	@if [ -z "$(LEADS_FILE)" ]; then echo "Usage: make migrate LEADS_FILE=path/to/leads.csv"; exit 1; fi

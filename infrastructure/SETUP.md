@@ -57,13 +57,25 @@ ANTHROPIC_MODEL=claude-opus-4-7
 
 ## Step-by-Step Deployment
 
+### Step 0 — Configure environment
+```bash
+cp .env.example .env   # fill in all values before running anything
+```
+
 ### Step 1 — GHL Setup (run once)
 ```bash
-cd ghl-setup
-cp ../../infrastructure/.env.example .env   # fill in GHL_API_KEY and GHL_LOCATION_ID
-npm run setup
+make setup
+# Creates: custom fields (homie_score + LPMAMA), pipeline, webhooks, campaigns, custom values
+# Idempotent — safe to re-run if interrupted
 ```
 Copy the pipeline and campaign IDs printed to console into your `.env`.
+
+### Step 1b — Verify all connections
+```bash
+make verify
+# Checks: GHL API, Anthropic, IDX, Redis, ElevenLabs (optional), webhooks, custom fields
+# All green = ready to deploy
+```
 
 ### Step 2 — Data Migration (run once)
 ```bash

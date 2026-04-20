@@ -17,30 +17,43 @@ async function ghl(method: string, path: string, body?: unknown) {
   return res.json();
 }
 
+const HOOKS = [
+  {
+    name: "Homie - New Lead",
+    url: `${ORCHESTRATOR_URL}/webhook/lead`,
+    events: ["ContactCreate"],
+  },
+  {
+    name: "Homie - Incoming Message",
+    url: `${ORCHESTRATOR_URL}/webhook/message`,
+    events: ["InboundMessage"],
+  },
+];
+
 export async function setupWebhooks() {
   console.log("Registering GHL webhooks...");
 
-  const hooks = [
-    {
-      name: "Homie - New Lead",
-      url: `${ORCHESTRATOR_URL}/webhook/lead`,
-      events: ["ContactCreate"],
-    },
-    {
-      name: "Homie - Incoming Message",
-      url: `${ORCHESTRATOR_URL}/webhook/message`,
-      events: ["InboundMessage"],
-    },
-  ];
+  // Fetch existing to avoid duplicates
+  const existing = await ghl("GET", `/locations/${GHL_LOCATION_ID}/webhooks`);
+  const existingUrls = new Set<string>(
+    (existing.webhooks ?? []).map((w: { url: string }) => w.url),
+  );
 
-  for (const hook of hooks) {
+  for (const hook of HOOKS) {
+    const targetUrl = `${ORCHESTRATOR_URL}${hook.url.replace(ORCHESTRATOR_URL, "")}`;
+
+    if (existingUrls.has(targetUrl)) {
+      console.log(`  ✓ Already exists: ${hook.name}`);
+      continue;
+    }
+
     const result = await ghl("POST", `/locations/${GHL_LOCATION_ID}/webhooks`, {
       name: hook.name,
-      url: hook.url,
+      url: targetUrl,
       events: hook.events,
     });
     console.log(
-      `Webhook registered: ${hook.name} → ${hook.url} (id: ${result.webhook?.id})`,
+      `  + Registered: ${hook.name} → ${targetUrl} (id: ${result.webhook?.id ?? "?"})`,
     );
   }
 
