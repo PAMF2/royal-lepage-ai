@@ -16,10 +16,11 @@ function verifySignature(req: Request): boolean {
     .update(payload)
     .digest("hex");
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature, "hex"),
-    Buffer.from(expected, "hex"),
-  );
+  const sigBuf = Buffer.from(signature, "hex");
+  const expBuf = Buffer.from(expected, "hex");
+  // timingSafeEqual requires equal-length buffers; unequal length means invalid
+  if (sigBuf.length !== expBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
 export async function handleLeadWebhook(req: Request, res: Response) {
