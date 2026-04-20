@@ -26,8 +26,9 @@ export default async function ListingGrid() {
   }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {listings.map((l: Record<string, unknown>) => (
-        <ListingCard key={l.mlsId as string} listing={l} />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {listings.map((l: any) => (
+        <ListingCard key={l.mlsId} listing={l} />
       ))}
     </div>
   );
