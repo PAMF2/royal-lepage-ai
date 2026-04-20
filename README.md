@@ -29,6 +29,11 @@ Full Verse.ai replacement + integrated brokerage AI stack. Manages 80,000–100,
 | `idx-mcp/` | IDX/MLS listings MCP (7 tools) |
 | `homie-admin-mcp/` | Agent OS MCP — offers, CMAs, presentations, marketing (6 tools) |
 | `showings-mcp/` | Showings MCP — ShowingTime + GHL calendar (5 tools) |
+| `vendor-mcp/` | Vendor coordination MCP — staging, cleaning, repairs (5 tools) |
+| `deal-analysis-mcp/` | Investment analysis MCP — cap rate, mortgage, closing costs, reports (5 tools) |
+| `queue/` | BullMQ + Redis queue — wraps orchestrator for 100k+ scale |
+| `monitoring/` | Conversation logging + system health (Redis-backed) |
+| `roi-calculator/` | Interactive ROI calculator — sales pitch tool for brokerage |
 | `campaign-templates/` | SMS/email copy for all 5 campaigns |
 | `docs/` | Scoping, architecture, pricing |
 | `infrastructure/` | .env.example + full deployment guide |
@@ -53,7 +58,14 @@ Full Verse.ai replacement + integrated brokerage AI stack. Manages 80,000–100,
 - Voice AI outbound calls (`elevenlabs-mcp/`)
 - Homie agent OS — offers, CMAs, listing presentations, marketing (`homie-admin-mcp/`)
 - Showings management (`showings-mcp/`)
+- Vendor coordination — staging, cleaning, repairs (`vendor-mcp/`)
+- Investment deal analysis — cap rate, mortgage, ROI reports (`deal-analysis-mcp/`)
 - Full brokerage workflow automation
+
+### Phase 4 — Scale & Analytics
+- Queue-based messaging for 100k concurrent leads (`queue/`)
+- Conversation logging + system health monitoring (`monitoring/`)
+- Interactive ROI calculator for brokerage sales pitch (`roi-calculator/`)
 
 ## Quick Start
 

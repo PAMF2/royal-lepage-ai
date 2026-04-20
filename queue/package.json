@@ -1,0 +1,22 @@
+{
+  "name": "rl-queue",
+  "version": "1.0.0",
+  "description": "BullMQ queue layer — wraps orchestrator for 100k+ lead scale",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "worker": "node dist/worker.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
