@@ -51,6 +51,7 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 ### Client-Facing
 | Module | Purpose |
 |--------|---------|
+| `setup-wizard/` | **3-step onboarding wizard** — credentials → GHL config → CSV import (no terminal needed) |
 | `idx-website/` | Next.js IDX website — listing search + lead capture |
 | `dashboard/` | Reporting dashboard — funnel, scores, activity feed |
 | `roi-calculator/` | Interactive ROI calculator — sales pitch tool |
@@ -86,6 +87,17 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 - IDX agreement signed with real estate board
 - Lead database exported to CSV
 - Server for orchestrator (Render starter ~$7/mo)
+
+### Option A — Setup Wizard (no terminal required)
+```bash
+cd setup-wizard && npm install && npm run dev
+# Open http://localhost:3010
+# Step 1: Enter API keys → Test Connections
+# Step 2: Click "Configure GoHighLevel" → creates pipeline, webhooks, fields
+# Step 3: Upload CSV → Import leads with live progress bar
+```
+
+### Option B — CLI (advanced)
 
 ### Step 1 — Configure environment
 ```bash
