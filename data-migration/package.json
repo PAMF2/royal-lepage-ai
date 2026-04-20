@@ -1,0 +1,15 @@
+{
+  "name": "royal-lepage-data-migration",
+  "version": "1.0.0",
+  "description": "CSV to GoHighLevel bulk lead importer — handles up to 100,000 contacts",
+  "type": "module",
+  "scripts": {
+    "migrate": "tsx src/index.ts",
+    "dry-run": "tsx src/index.ts --dry-run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

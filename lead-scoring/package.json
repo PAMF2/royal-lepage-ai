@@ -1,0 +1,14 @@
+{
+  "name": "royal-lepage-lead-scoring",
+  "version": "1.0.0",
+  "description": "Lead scoring runner — scores all GHL contacts 0-100 and tags them (run daily)",
+  "type": "module",
+  "scripts": {
+    "score": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
