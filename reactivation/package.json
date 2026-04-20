@@ -4,7 +4,9 @@
   "description": "Scheduled reactivation engine — re-engages dormant leads with personalized listings and price drop triggers",
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts"
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "start:prod": "node dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

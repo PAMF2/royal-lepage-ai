@@ -4,6 +4,7 @@
   "description": "CSV to GoHighLevel bulk lead importer — handles up to 100,000 contacts",
   "type": "module",
   "scripts": {
+    "build": "tsc",
     "migrate": "tsx src/index.ts",
     "dry-run": "tsx src/index.ts --dry-run"
   },

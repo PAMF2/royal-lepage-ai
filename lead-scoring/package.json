@@ -4,7 +4,9 @@
   "description": "Lead scoring runner — scores all GHL contacts 0-100 and tags them (run daily)",
   "type": "module",
   "scripts": {
-    "score": "tsx src/index.ts"
+    "build": "tsc",
+    "score": "tsx src/index.ts",
+    "start": "node dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
