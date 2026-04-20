@@ -1,14 +1,12 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 const RED = "#C8102E";
-const LIGHT_RED = "#fef2f2";
 const GREEN = "#16a34a";
 const LIGHT_GREEN = "#f0fdf4";
+const LIGHT_RED = "#fef2f2";
 const BORDER = "#e5e7eb";
 const MUTED = "#6b7280";
-
-// ── Types ──────────────────────────────────────────────────────────────────
 
 interface Creds {
   ghlApiKey: string;
@@ -33,24 +31,38 @@ interface SetupStep {
   ok: boolean;
 }
 
-// ── Small components ───────────────────────────────────────────────────────
+const EMPTY: Creds = {
+  ghlApiKey: "",
+  ghlLocationId: "",
+  anthropicApiKey: "",
+  idxProvider: "crea_ddf",
+  idxApiKey: "",
+  idxApiSecret: "",
+  orchestratorUrl: "",
+  webhookSecret: "",
+  elevenLabsApiKey: "",
+};
 
-function Label({ children }: { children: React.ReactNode }) {
+// ── Primitives ─────────────────────────────────────────────────────────────
+
+function Spinner() {
   return (
-    <div
+    <span
       style={{
-        fontSize: 13,
-        fontWeight: 600,
-        color: "#374151",
-        marginBottom: 6,
+        width: 16,
+        height: 16,
+        border: "2px solid currentColor",
+        borderTopColor: "transparent",
+        borderRadius: "50%",
+        display: "inline-block",
+        animation: "spin 0.7s linear infinite",
+        flexShrink: 0,
       }}
-    >
-      {children}
-    </div>
+    />
   );
 }
 
-function Input({
+function Field({
   label,
   value,
   onChange,
@@ -66,30 +78,36 @@ function Input({
   optional?: boolean;
 }) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <Label>
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#374151",
+          marginBottom: 5,
+        }}
+      >
         {label}
         {optional && (
-          <span style={{ color: MUTED, fontWeight: 400, marginLeft: 6 }}>
-            (optional)
-          </span>
+          <span style={{ color: MUTED, fontWeight: 400 }}> (optional)</span>
         )}
-      </Label>
+      </div>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        autoComplete="off"
         style={{
           width: "100%",
-          padding: "10px 12px",
+          padding: "9px 12px",
           border: `1px solid ${BORDER}`,
-          borderRadius: 8,
+          borderRadius: 7,
           fontSize: 14,
           outline: "none",
           boxSizing: "border-box",
-          fontFamily: type === "password" ? "monospace" : "inherit",
           background: "white",
+          fontFamily: type === "password" ? "monospace" : "inherit",
         }}
       />
     </div>
@@ -102,119 +120,102 @@ function Btn({
   disabled,
   loading,
   variant = "primary",
-  small,
+  full,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "outline";
-  small?: boolean;
+  variant?: "primary" | "ghost";
+  full?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
       style={{
-        padding: small ? "8px 18px" : "12px 28px",
+        width: full ? "100%" : undefined,
+        padding: "12px 28px",
         background:
           variant === "primary"
             ? disabled || loading
               ? "#d1d5db"
               : RED
-            : "white",
+            : "transparent",
         color: variant === "primary" ? "white" : disabled ? MUTED : RED,
         border:
-          variant === "outline"
-            ? `2px solid ${disabled ? BORDER : RED}`
-            : "none",
+          variant === "ghost" ? `2px solid ${disabled ? BORDER : RED}` : "none",
         borderRadius: 8,
-        fontSize: small ? 13 : 15,
+        fontSize: 15,
         fontWeight: 600,
         cursor: disabled || loading ? "default" : "pointer",
         display: "inline-flex",
         alignItems: "center",
+        justifyContent: "center",
         gap: 8,
         transition: "opacity 0.15s",
       }}
     >
-      {loading && (
-        <span
-          style={{
-            width: 14,
-            height: 14,
-            border: "2px solid currentColor",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            display: "inline-block",
-            animation: "spin 0.7s linear infinite",
-          }}
-        />
-      )}
+      {loading && <Spinner />}
       {children}
     </button>
   );
 }
 
-function Badge({ ok }: { ok: boolean }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 22,
-        height: 22,
-        borderRadius: "50%",
-        background: ok ? LIGHT_GREEN : LIGHT_RED,
-        color: ok ? GREEN : RED,
-        fontSize: 13,
-        fontWeight: 700,
-      }}
-    >
-      {ok ? "✓" : "✗"}
-    </span>
-  );
-}
-
-function Card({
-  children,
-  style,
+function StatusRow({
+  ok,
+  name,
+  detail,
 }: {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
+  ok: boolean;
+  name: string;
+  detail: string;
 }) {
-  return (
-    <div
-      style={{
-        background: "white",
-        borderRadius: 12,
-        border: `1px solid ${BORDER}`,
-        padding: "28px 32px",
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ── Step indicator ─────────────────────────────────────────────────────────
-
-function Steps({ current }: { current: number }) {
-  const labels = ["Credentials", "GHL Setup", "Import Leads"];
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 0,
-        marginBottom: 32,
+        gap: 10,
+        padding: "9px 14px",
+        borderRadius: 7,
+        background: ok ? LIGHT_GREEN : LIGHT_RED,
       }}
     >
+      <span
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: ok ? GREEN : RED,
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 12,
+          fontWeight: 700,
+        }}
+      >
+        {ok ? "✓" : "✗"}
+      </span>
+      <span style={{ fontWeight: 600, fontSize: 13 }}>{name}</span>
+      <span style={{ fontSize: 12, color: MUTED, marginLeft: 4 }}>
+        {detail}
+      </span>
+    </div>
+  );
+}
+
+// ── Step pill bar ──────────────────────────────────────────────────────────
+
+function StepBar({ step }: { step: number }) {
+  const labels = ["Connect", "Activate", "Import"];
+  return (
+    <div style={{ display: "flex", alignItems: "center", marginBottom: 32 }}>
       {labels.map((label, i) => {
-        const done = i < current;
-        const active = i === current;
+        const done = i < step;
+        const active = i === step;
         return (
           <div
             key={i}
@@ -229,22 +230,22 @@ function Steps({ current }: { current: number }) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 6,
+                gap: 5,
               }}
             >
               <div
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontWeight: 700,
-                  fontSize: 14,
+                  fontWeight: 800,
+                  fontSize: 15,
                   background: done ? GREEN : active ? RED : "#e5e7eb",
                   color: done || active ? "white" : MUTED,
-                  transition: "all 0.2s",
+                  transition: "all 0.25s",
                 }}
               >
                 {done ? "✓" : i + 1}
@@ -252,9 +253,9 @@ function Steps({ current }: { current: number }) {
               <span
                 style={{
                   fontSize: 12,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? RED : done ? GREEN : MUTED,
                   whiteSpace: "nowrap",
+                  fontWeight: active ? 700 : 400,
+                  color: active ? RED : done ? GREEN : MUTED,
                 }}
               >
                 {label}
@@ -265,8 +266,8 @@ function Steps({ current }: { current: number }) {
                 style={{
                   flex: 1,
                   height: 2,
-                  margin: "0 8px",
-                  marginBottom: 22,
+                  margin: "0 6px",
+                  marginBottom: 20,
                   background: done ? GREEN : "#e5e7eb",
                   transition: "background 0.3s",
                 }}
@@ -279,7 +280,7 @@ function Steps({ current }: { current: number }) {
   );
 }
 
-// ── Step 1: Credentials ────────────────────────────────────────────────────
+// ── Step 1: Connect ────────────────────────────────────────────────────────
 
 function Step1({
   creds,
@@ -290,60 +291,97 @@ function Step1({
   setCreds: (c: Creds) => void;
   onNext: () => void;
 }) {
-  const [checking, setChecking] = useState(false);
-  const [results, setResults] = useState<CheckResult[] | null>(null);
+  const [state, setState] = useState<"idle" | "checking" | "done">("idle");
+  const [results, setResults] = useState<CheckResult[]>([]);
 
-  const set = (key: keyof Creds) => (v: string) =>
-    setCreds({ ...creds, [key]: v });
+  const set = (k: keyof Creds) => (v: string) => setCreds({ ...creds, [k]: v });
 
-  async function verify() {
-    setChecking(true);
-    setResults(null);
-    try {
-      const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(creds),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        results: CheckResult[];
-      };
-      setResults(data.results);
-    } catch (e) {
-      setResults([{ name: "Network", ok: false, detail: String(e) }]);
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  const requiredFilled =
+  const ready = !!(
     creds.ghlApiKey &&
     creds.ghlLocationId &&
     creds.anthropicApiKey &&
     creds.idxApiKey &&
     creds.idxApiSecret &&
     creds.orchestratorUrl &&
-    creds.webhookSecret;
+    creds.webhookSecret
+  );
 
   const allOk =
-    results?.filter((r) => r.name !== "ElevenLabs").every((r) => r.ok) ?? false;
+    results.length > 0 &&
+    results.filter((r) => r.name !== "ElevenLabs").every((r) => r.ok);
+
+  async function connect() {
+    setState("checking");
+    const res = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(creds),
+    });
+    const data = (await res.json()) as { results: CheckResult[] };
+    setResults(data.results);
+
+    const ok = data.results
+      .filter((r) => r.name !== "ElevenLabs")
+      .every((r) => r.ok);
+    if (ok) {
+      // Persist credentials
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creds }),
+      });
+    }
+    setState("done");
+  }
+
+  function downloadEnv() {
+    const content = [
+      `GHL_API_KEY=${creds.ghlApiKey}`,
+      `GHL_LOCATION_ID=${creds.ghlLocationId}`,
+      `ANTHROPIC_API_KEY=${creds.anthropicApiKey}`,
+      `ANTHROPIC_MODEL=claude-opus-4-7`,
+      `IDX_PROVIDER=${creds.idxProvider}`,
+      `IDX_API_KEY=${creds.idxApiKey}`,
+      `IDX_API_SECRET=${creds.idxApiSecret}`,
+      `ORCHESTRATOR_URL=${creds.orchestratorUrl}`,
+      `WEBHOOK_SECRET=${creds.webhookSecret}`,
+      creds.elevenLabsApiKey
+        ? `ELEVENLABS_API_KEY=${creds.elevenLabsApiKey}`
+        : "",
+      `REDIS_URL=redis://localhost:6379`,
+      `QUEUE_SECRET=${creds.webhookSecret}`,
+      `MONITORING_SECRET=${creds.webhookSecret}`,
+      `AGENT_LANGUAGE=bilingual`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
+    a.download = ".env";
+    a.click();
+  }
 
   return (
-    <Card>
-      <h2 style={{ margin: "0 0 6px", fontSize: 20, color: "#111" }}>
-        API Credentials
+    <div>
+      <h2
+        style={{
+          margin: "0 0 4px",
+          fontSize: 22,
+          fontWeight: 800,
+          color: "#111",
+        }}
+      >
+        Connect your accounts
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        Enter your API keys. Nothing is stored — credentials are used only
-        during setup.
+        Enter your API keys once — saved locally for future imports.
       </p>
 
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: "0 24px",
+          gap: "0 28px",
         }}
       >
         <div>
@@ -352,32 +390,32 @@ function Step1({
               fontSize: 11,
               letterSpacing: 2,
               color: MUTED,
-              marginBottom: 12,
+              marginBottom: 10,
               textTransform: "uppercase",
             }}
           >
             GoHighLevel
           </div>
-          <Input
-            label="GHL API Key"
+          <Field
+            label="API Key"
             value={creds.ghlApiKey}
             onChange={set("ghlApiKey")}
             type="password"
             placeholder="eyJhbGci..."
           />
-          <Input
-            label="GHL Location ID"
+          <Field
+            label="Location ID"
             value={creds.ghlLocationId}
             onChange={set("ghlLocationId")}
-            placeholder="abc123xyz"
+            placeholder="abc123"
           />
-          <Input
+          <Field
             label="Orchestrator URL"
             value={creds.orchestratorUrl}
             onChange={set("orchestratorUrl")}
             placeholder="https://your-app.railway.app"
           />
-          <Input
+          <Field
             label="Webhook Secret"
             value={creds.webhookSecret}
             onChange={set("webhookSecret")}
@@ -391,21 +429,30 @@ function Step1({
               fontSize: 11,
               letterSpacing: 2,
               color: MUTED,
-              marginBottom: 12,
+              marginBottom: 10,
               textTransform: "uppercase",
             }}
           >
-            AI & Data
+            AI & MLS
           </div>
-          <Input
+          <Field
             label="Anthropic API Key"
             value={creds.anthropicApiKey}
             onChange={set("anthropicApiKey")}
             type="password"
             placeholder="sk-ant-..."
           />
-          <div style={{ marginBottom: 16 }}>
-            <Label>IDX Provider</Label>
+          <div style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#374151",
+                marginBottom: 5,
+              }}
+            >
+              IDX Provider
+            </div>
             <select
               value={creds.idxProvider}
               onChange={(e) =>
@@ -413,9 +460,9 @@ function Step1({
               }
               style={{
                 width: "100%",
-                padding: "10px 12px",
+                padding: "9px 12px",
                 border: `1px solid ${BORDER}`,
-                borderRadius: 8,
+                borderRadius: 7,
                 fontSize: 14,
                 background: "white",
               }}
@@ -424,19 +471,19 @@ function Step1({
               <option value="simplyrets">SimplyRETS (US)</option>
             </select>
           </div>
-          <Input
+          <Field
             label="IDX API Key"
             value={creds.idxApiKey}
             onChange={set("idxApiKey")}
             type="password"
           />
-          <Input
+          <Field
             label="IDX API Secret"
             value={creds.idxApiSecret}
             onChange={set("idxApiSecret")}
             type="password"
           />
-          <Input
+          <Field
             label="ElevenLabs API Key"
             value={creds.elevenLabsApiKey}
             onChange={set("elevenLabsApiKey")}
@@ -447,131 +494,117 @@ function Step1({
         </div>
       </div>
 
-      {results && (
+      {results.length > 0 && (
         <div
           style={{
-            marginTop: 20,
             display: "flex",
             flexDirection: "column",
-            gap: 8,
+            gap: 6,
+            marginBottom: 20,
           }}
         >
           {results.map((r) => (
-            <div
-              key={r.name}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 14px",
-                borderRadius: 8,
-                background: r.ok ? LIGHT_GREEN : LIGHT_RED,
-              }}
-            >
-              <Badge ok={r.ok} />
-              <div>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</span>
-                <span style={{ fontSize: 13, color: MUTED, marginLeft: 10 }}>
-                  {r.detail}
-                </span>
-              </div>
-            </div>
+            <StatusRow key={r.name} {...r} />
           ))}
         </div>
       )}
 
-      <div
-        style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
-      >
-        <Btn
-          onClick={verify}
-          loading={checking}
-          disabled={!requiredFilled}
-          variant="outline"
-        >
-          Test Connections
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <Btn onClick={connect} loading={state === "checking"} disabled={!ready}>
+          {state === "done" && !allOk ? "Retry Connection" : "Connect →"}
         </Btn>
         {allOk && (
-          <Btn
-            variant="outline"
-            onClick={() => {
-              const lines = [
-                `GHL_API_KEY=${creds.ghlApiKey}`,
-                `GHL_LOCATION_ID=${creds.ghlLocationId}`,
-                `ANTHROPIC_API_KEY=${creds.anthropicApiKey}`,
-                `ANTHROPIC_MODEL=claude-opus-4-7`,
-                `IDX_PROVIDER=${creds.idxProvider}`,
-                `IDX_API_KEY=${creds.idxApiKey}`,
-                `IDX_API_SECRET=${creds.idxApiSecret}`,
-                `ORCHESTRATOR_URL=${creds.orchestratorUrl}`,
-                `WEBHOOK_SECRET=${creds.webhookSecret}`,
-                creds.elevenLabsApiKey
-                  ? `ELEVENLABS_API_KEY=${creds.elevenLabsApiKey}`
-                  : "",
-                `REDIS_URL=redis://localhost:6379`,
-                `QUEUE_SECRET=${creds.webhookSecret}`,
-                `MONITORING_SECRET=${creds.webhookSecret}`,
-                `AGENT_LANGUAGE=bilingual`,
-              ]
-                .filter(Boolean)
-                .join("\n");
-              const blob = new Blob([lines], { type: "text/plain" });
-              const a = document.createElement("a");
-              a.href = URL.createObjectURL(blob);
-              a.download = ".env";
-              a.click();
-            }}
-          >
-            ↓ Download .env
-          </Btn>
+          <>
+            <Btn variant="ghost" onClick={downloadEnv}>
+              ↓ Download .env
+            </Btn>
+            <Btn onClick={onNext}>Next: Activate GHL →</Btn>
+          </>
         )}
-        {allOk && <Btn onClick={onNext}>Continue →</Btn>}
       </div>
-    </Card>
+    </div>
   );
 }
 
-// ── Step 2: GHL Setup ──────────────────────────────────────────────────────
+// ── Step 2: Activate ───────────────────────────────────────────────────────
 
-function Step2({ creds, onNext }: { creds: Creds; onNext: () => void }) {
-  const [running, setRunning] = useState(false);
-  const [steps, setSteps] = useState<SetupStep[] | null>(null);
+function Step2({
+  creds,
+  alreadyDone,
+  onNext,
+}: {
+  creds: Creds;
+  alreadyDone: boolean;
+  onNext: () => void;
+}) {
+  const [state, setState] = useState<"idle" | "running" | "done">(
+    alreadyDone ? "done" : "idle",
+  );
+  const [steps, setSteps] = useState<SetupStep[]>([]);
 
-  async function runSetup() {
-    setRunning(true);
-    setSteps(null);
-    try {
-      const res = await fetch("/api/setup", {
+  // Auto-advance if already configured
+  useEffect(() => {
+    if (alreadyDone) {
+      const t = setTimeout(onNext, 800);
+      return () => clearTimeout(t);
+    }
+  }, [alreadyDone, onNext]);
+
+  async function activate() {
+    setState("running");
+    const res = await fetch("/api/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(creds),
+    });
+    const data = (await res.json()) as { ok: boolean; steps: SetupStep[] };
+    setSteps(data.steps);
+
+    if (data.ok) {
+      await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(creds),
+        body: JSON.stringify({ ghlConfigured: true }),
       });
-      const data = (await res.json()) as { ok: boolean; steps: SetupStep[] };
-      setSteps(data.steps);
-    } catch (e) {
-      setSteps([{ label: "Error", result: String(e), ok: false }]);
-    } finally {
-      setRunning(false);
     }
+    setState("done");
   }
 
-  const allOk = steps?.every((s) => s.ok) ?? false;
+  const allOk = steps.every((s) => s.ok);
+
+  if (alreadyDone && state !== "done") {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 0" }}>
+        <Spinner />
+        <p style={{ color: MUTED, marginTop: 12 }}>
+          GoHighLevel already configured — skipping…
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <Card>
-      <h2 style={{ margin: "0 0 6px", fontSize: 20, color: "#111" }}>
-        Configure GoHighLevel
+    <div>
+      <h2
+        style={{
+          margin: "0 0 4px",
+          fontSize: 22,
+          fontWeight: 800,
+          color: "#111",
+        }}
+      >
+        Activate GoHighLevel
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        One click creates everything in your GHL account. Safe to re-run — skips
-        what already exists.
+        One click creates your pipeline, webhooks, custom fields, and campaigns.
+        Safe to re-run.
       </p>
 
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 12,
+          gap: 10,
           marginBottom: 24,
         }}
       >
@@ -579,105 +612,105 @@ function Step2({ creds, onNext }: { creds: Creds; onNext: () => void }) {
           {
             icon: "📋",
             label: "Custom Fields",
-            desc: "homie_score, 6 LPMAMA fields, IDX tracking",
+            desc: "homie_score · LPMAMA · IDX tracking",
           },
           {
             icon: "🔀",
             label: "Pipeline",
-            desc: "New Lead → Attempted → Contacted → Qualified → Booked → Closed",
+            desc: "New → Attempted → Contacted → Qualified → Booked → Closed",
           },
           {
             icon: "🔗",
             label: "Webhooks",
-            desc: "ContactCreate + InboundMessage → your orchestrator",
+            desc: "ContactCreate + InboundMessage → orchestrator",
           },
           {
             icon: "📢",
             label: "Campaigns",
-            desc: "7-Day Drip, Reactivation, Appointment Reminder, Post-Showing, Nurture",
+            desc: "7-Day Drip · Reactivation · Reminders · Nurture",
           },
-        ].map((item) => (
-          <div
-            key={item.label}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              padding: "14px 16px",
-              borderRadius: 8,
-              border: `1px solid ${BORDER}`,
-              background: "#fafafa",
-            }}
-          >
-            <span style={{ fontSize: 22 }}>{item.icon}</span>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{item.label}</div>
-              <div style={{ fontSize: 13, color: MUTED }}>{item.desc}</div>
-            </div>
-            {steps && (
-              <div style={{ marginLeft: "auto" }}>
-                <Badge
-                  ok={steps.find((s) => s.label === item.label)?.ok ?? false}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {steps && (
-        <div
-          style={{
-            marginBottom: 20,
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
-          {steps.map((s) => (
+        ].map((item) => {
+          const done = steps.find((s) => s.label === item.label);
+          return (
             <div
-              key={s.label}
+              key={item.label}
               style={{
-                padding: "8px 14px",
-                borderRadius: 6,
-                background: s.ok ? LIGHT_GREEN : LIGHT_RED,
-                fontSize: 13,
-                color: s.ok ? GREEN : RED,
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                padding: "13px 16px",
+                borderRadius: 8,
+                border: `1px solid ${done ? (done.ok ? "#bbf7d0" : "#fecaca") : BORDER}`,
+                background: done
+                  ? done.ok
+                    ? LIGHT_GREEN
+                    : LIGHT_RED
+                  : "#fafafa",
+                transition: "all 0.3s",
               }}
             >
-              <strong>{s.label}:</strong> {s.result}
+              <span style={{ fontSize: 20 }}>{item.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>
+                  {item.label}
+                </div>
+                <div style={{ fontSize: 12, color: MUTED }}>
+                  {done ? done.result : item.desc}
+                </div>
+              </div>
+              {state === "running" && !done && <Spinner />}
+              {done && (
+                <span
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: done.ok ? GREEN : RED,
+                    color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  {done.ok ? "✓" : "✗"}
+                </span>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       <div style={{ display: "flex", gap: 12 }}>
-        <Btn
-          onClick={runSetup}
-          loading={running}
-          variant={steps ? "outline" : "primary"}
-        >
-          {steps ? "Re-run Setup" : "Configure GoHighLevel"}
-        </Btn>
-        {allOk && <Btn onClick={onNext}>Continue →</Btn>}
+        {state !== "done" && (
+          <Btn onClick={activate} loading={state === "running"} full>
+            Activate GoHighLevel →
+          </Btn>
+        )}
+        {state === "done" && !allOk && (
+          <Btn onClick={activate} variant="ghost">
+            Retry
+          </Btn>
+        )}
+        {state === "done" && allOk && (
+          <Btn onClick={onNext} full>
+            Next: Import Leads →
+          </Btn>
+        )}
       </div>
-    </Card>
+    </div>
   );
 }
 
-// ── Step 3: Import Leads ───────────────────────────────────────────────────
+// ── Step 3: Import ─────────────────────────────────────────────────────────
 
 function Step3({ creds }: { creds: Creds }) {
   const [csv, setCsv] = useState("");
-  const [preview, setPreview] = useState<string[][] | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [done, setDone] = useState(false);
-  const [progress, setProgress] = useState({
-    total: 0,
-    done: 0,
-    errors: 0,
-    logs: [] as string[],
-  });
+  const [preview, setPreview] = useState<string[][]>([]);
+  const [state, setState] = useState<"idle" | "importing" | "done">("idle");
+  const [prog, setProg] = useState({ total: 0, done: 0, errors: 0, log: "" });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadFile = useCallback((file: File) => {
@@ -695,64 +728,53 @@ function Step3({ creds }: { creds: Creds }) {
     reader.readAsText(file);
   }, []);
 
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) loadFile(file);
-  }
-
   async function startImport() {
-    setImporting(true);
-    setProgress({ total: 0, done: 0, errors: 0, logs: [] });
-
+    setState("importing");
     await fetch("/api/migrate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ creds, csv }),
     });
 
-    // Stream progress via SSE
     const es = new EventSource("/api/progress");
     es.onmessage = (e) => {
-      const data = JSON.parse(e.data) as {
+      const d = JSON.parse(e.data) as {
         total: number;
         done: number;
         errors: number;
-        running: boolean;
         newLogs: string[];
         finished?: boolean;
+        running: boolean;
       };
-      setProgress((p) => ({
-        total: data.total,
-        done: data.done,
-        errors: data.errors,
-        logs: [...p.logs, ...data.newLogs],
+      setProg((p) => ({
+        total: d.total,
+        done: d.done,
+        errors: d.errors,
+        log: d.newLogs.at(-1) ?? p.log,
       }));
-      if (data.finished || !data.running) {
+      if (d.finished || !d.running) {
         es.close();
-        setImporting(false);
-        setDone(true);
+        setState("done");
       }
     };
   }
 
-  const pct =
-    progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+  const total = csv ? csv.trim().split("\n").length - 1 : 0;
+  const pct = prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
 
-  if (done) {
+  if (state === "done") {
     return (
-      <Card style={{ textAlign: "center", padding: "48px 32px" }}>
-        <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-        <h2 style={{ margin: "0 0 8px", fontSize: 24, color: "#111" }}>
+      <div style={{ textAlign: "center", padding: "32px 0" }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+        <h2 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 800 }}>
           Platform is live!
         </h2>
-        <p style={{ color: MUTED, margin: "0 0 8px" }}>
-          {progress.done.toLocaleString()} leads imported · {progress.errors}{" "}
-          skipped
+        <p style={{ color: MUTED, margin: "0 0 4px" }}>
+          <strong>{prog.done.toLocaleString()}</strong> leads imported
+          {prog.errors > 0 && ` · ${prog.errors} skipped (no phone/email)`}
         </p>
-        <p style={{ color: MUTED, fontSize: 14, margin: "0 0 32px" }}>
-          GHL is configured. The AI agent is listening for new leads and
-          incoming messages.
+        <p style={{ color: MUTED, fontSize: 13, margin: "0 0 28px" }}>
+          The AI agent is now responding to leads in real time.
         </p>
         <div
           style={{
@@ -767,7 +789,7 @@ function Step3({ creds }: { creds: Creds }) {
             target="_blank"
             rel="noreferrer"
             style={{
-              padding: "10px 20px",
+              padding: "11px 22px",
               background: RED,
               color: "white",
               borderRadius: 8,
@@ -783,7 +805,7 @@ function Step3({ creds }: { creds: Creds }) {
             target="_blank"
             rel="noreferrer"
             style={{
-              padding: "10px 20px",
+              padding: "11px 22px",
               border: `2px solid ${BORDER}`,
               borderRadius: 8,
               textDecoration: "none",
@@ -792,32 +814,66 @@ function Step3({ creds }: { creds: Creds }) {
               color: "#374151",
             }}
           >
-            Check Orchestrator →
+            Check AI Agent →
           </a>
+          <button
+            onClick={() => {
+              setCsv("");
+              setPreview([]);
+              setState("idle");
+              setProg({ total: 0, done: 0, errors: 0, log: "" });
+            }}
+            style={{
+              padding: "11px 22px",
+              border: `2px solid ${BORDER}`,
+              borderRadius: 8,
+              background: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: 14,
+              color: MUTED,
+            }}
+          >
+            Import Another CSV
+          </button>
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <h2 style={{ margin: "0 0 6px", fontSize: 20, color: "#111" }}>
+    <div>
+      <h2
+        style={{
+          margin: "0 0 4px",
+          fontSize: 22,
+          fontWeight: 800,
+          color: "#111",
+        }}
+      >
         Import Leads
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        Upload your lead database CSV. Supports up to 100,000 contacts. Required
-        columns: <code>firstName, lastName, email, phone</code>
+        Drop your lead database CSV. Up to 100,000 contacts. Needs at least:{" "}
+        <code
+          style={{ background: "#f3f4f6", padding: "1px 6px", borderRadius: 4 }}
+        >
+          firstName, lastName, email, phone
+        </code>
       </p>
 
       {!csv ? (
         <div
-          onDrop={onDrop}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+          }}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => fileRef.current?.click()}
           style={{
             border: `2px dashed ${BORDER}`,
             borderRadius: 12,
-            padding: "48px 24px",
+            padding: "52px 24px",
             textAlign: "center",
             cursor: "pointer",
             background: "#fafafa",
@@ -826,11 +882,18 @@ function Step3({ creds }: { creds: Creds }) {
           onMouseEnter={(e) => (e.currentTarget.style.borderColor = RED)}
           onMouseLeave={(e) => (e.currentTarget.style.borderColor = BORDER)}
         >
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📂</div>
-          <div style={{ fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-            Drop your CSV here or click to browse
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 16,
+              color: "#374151",
+              marginBottom: 4,
+            }}
+          >
+            Drop CSV here or click to browse
           </div>
-          <div style={{ fontSize: 13, color: MUTED }}>CSV files up to 50MB</div>
+          <div style={{ fontSize: 13, color: MUTED }}>CSV · up to 50 MB</div>
           <input
             ref={fileRef}
             type="file"
@@ -843,60 +906,64 @@ function Step3({ creds }: { creds: Creds }) {
         </div>
       ) : (
         <>
-          {preview && (
-            <div style={{ overflowX: "auto", marginBottom: 20 }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr>
-                    {preview[0].map((h, i) => (
-                      <th
-                        key={i}
-                        style={{
-                          padding: "8px 12px",
-                          textAlign: "left",
-                          background: "#f9fafb",
-                          borderBottom: `1px solid ${BORDER}`,
-                          color: MUTED,
-                          fontWeight: 600,
-                          fontSize: 11,
-                          letterSpacing: 1,
-                          textTransform: "uppercase",
-                        }}
+          <div
+            style={{
+              overflowX: "auto",
+              marginBottom: 20,
+              borderRadius: 8,
+              border: `1px solid ${BORDER}`,
+            }}
+          >
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  {preview[0]?.map((h, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        padding: "8px 14px",
+                        textAlign: "left",
+                        borderBottom: `1px solid ${BORDER}`,
+                        color: MUTED,
+                        fontWeight: 600,
+                        fontSize: 11,
+                        letterSpacing: 1,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.slice(1).map((row, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                    {row.map((cell, j) => (
+                      <td
+                        key={j}
+                        style={{ padding: "8px 14px", color: "#374151" }}
                       >
-                        {h}
-                      </th>
+                        {cell}
+                      </td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {preview.slice(1).map((row, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                      {row.map((cell, j) => (
-                        <td
-                          key={j}
-                          style={{ padding: "8px 12px", color: "#374151" }}
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
-                Showing first 5 rows · {csv.trim().split("\n").length - 1} total
-                contacts
-              </div>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>
+            Showing first 5 rows · <strong>{total.toLocaleString()}</strong>{" "}
+            total contacts
+          </div>
 
-          {importing && (
+          {state === "importing" && (
             <div style={{ marginBottom: 20 }}>
               <div
                 style={{
@@ -907,9 +974,9 @@ function Step3({ creds }: { creds: Creds }) {
                 }}
               >
                 <span style={{ color: MUTED }}>Importing…</span>
-                <span style={{ fontWeight: 600 }}>
-                  {progress.done.toLocaleString()} /{" "}
-                  {progress.total.toLocaleString()} ({pct}%)
+                <span style={{ fontWeight: 700 }}>
+                  {prog.done.toLocaleString()} / {prog.total.toLocaleString()} (
+                  {pct}%)
                 </span>
               </div>
               <div
@@ -930,100 +997,172 @@ function Step3({ creds }: { creds: Creds }) {
                   }}
                 />
               </div>
-              {progress.logs.length > 0 && (
-                <div style={{ marginTop: 10, fontSize: 12, color: MUTED }}>
-                  {progress.logs[progress.logs.length - 1]}
+              {prog.log && (
+                <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
+                  {prog.log}
                 </div>
               )}
             </div>
           )}
 
           <div style={{ display: "flex", gap: 12 }}>
+            {state === "idle" && (
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  setCsv("");
+                  setPreview([]);
+                }}
+                disabled={state !== "idle"}
+              >
+                Change file
+              </Btn>
+            )}
             <Btn
-              onClick={() => {
-                setCsv("");
-                setPreview(null);
-              }}
-              variant="outline"
-              small
-              disabled={importing}
+              onClick={startImport}
+              loading={state === "importing"}
+              disabled={state === "importing"}
             >
-              Change file
-            </Btn>
-            <Btn onClick={startImport} loading={importing} disabled={importing}>
-              Import {(csv.trim().split("\n").length - 1).toLocaleString()}{" "}
-              Leads
+              Import {total.toLocaleString()} Leads →
             </Btn>
           </div>
         </>
       )}
-    </Card>
+    </div>
   );
 }
 
-// ── Main wizard ────────────────────────────────────────────────────────────
+// ── Root wizard ────────────────────────────────────────────────────────────
 
-const DEFAULT_CREDS: Creds = {
-  ghlApiKey: "",
-  ghlLocationId: "",
-  anthropicApiKey: "",
-  idxProvider: "crea_ddf",
-  idxApiKey: "",
-  idxApiSecret: "",
-  orchestratorUrl: "",
-  webhookSecret: "",
-  elevenLabsApiKey: "",
-};
-
-export default function SetupWizard() {
+export default function Wizard() {
   const [step, setStep] = useState(0);
-  const [creds, setCreds] = useState<Creds>(DEFAULT_CREDS);
+  const [creds, setCreds] = useState<Creds>(EMPTY);
+  const [ghlAlreadyDone, setGhlAlreadyDone] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load saved config on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/config");
+        const data = (await res.json()) as {
+          exists: boolean;
+          creds?: Record<string, string>;
+          ghlConfigured?: boolean;
+        };
+
+        if (data.exists && data.creds) {
+          setCreds(data.creds as unknown as Creds);
+
+          if (data.ghlConfigured) {
+            setGhlAlreadyDone(true);
+            setStep(2); // skip straight to import
+          } else {
+            setStep(1); // skip credentials, go to activation
+          }
+        }
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#f5f5f5",
+        }}
+      >
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } * { box-sizing: border-box; }`}</style>
 
       {/* Header */}
       <div
         style={{
           background: RED,
-          padding: "18px 40px",
+          padding: "16px 40px",
           display: "flex",
           alignItems: "center",
-          gap: 16,
+          gap: 12,
         }}
       >
         <div
           style={{
-            width: 10,
-            height: 10,
+            width: 9,
+            height: 9,
             borderRadius: "50%",
             background: "white",
-            opacity: 0.8,
+            opacity: 0.85,
           }}
         />
         <span
           style={{
             color: "white",
             fontWeight: 700,
-            fontSize: 16,
-            letterSpacing: 0.5,
+            fontSize: 15,
+            letterSpacing: 0.3,
           }}
         >
-          ROYAL LEPAGE — AI Platform Setup
+          ROYAL LEPAGE — Platform Setup
         </span>
+        {step === 2 && (
+          <button
+            onClick={() => setStep(0)}
+            style={{
+              marginLeft: "auto",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.4)",
+              color: "white",
+              borderRadius: 6,
+              padding: "4px 12px",
+              cursor: "pointer",
+              fontSize: 12,
+            }}
+          >
+            ← Reconfigure
+          </button>
+        )}
       </div>
 
       <div
-        style={{ maxWidth: 820, margin: "40px auto", padding: "0 24px 60px" }}
+        style={{ maxWidth: 780, margin: "40px auto", padding: "0 24px 80px" }}
       >
-        <Steps current={step} />
+        <StepBar step={step} />
 
-        {step === 0 && (
-          <Step1 creds={creds} setCreds={setCreds} onNext={() => setStep(1)} />
-        )}
-        {step === 1 && <Step2 creds={creds} onNext={() => setStep(2)} />}
-        {step === 2 && <Step3 creds={creds} />}
+        <div
+          style={{
+            background: "white",
+            borderRadius: 12,
+            border: `1px solid ${BORDER}`,
+            padding: "32px 36px",
+          }}
+        >
+          {step === 0 && (
+            <Step1
+              creds={creds}
+              setCreds={setCreds}
+              onNext={() => setStep(1)}
+            />
+          )}
+          {step === 1 && (
+            <Step2
+              creds={creds}
+              alreadyDone={ghlAlreadyDone}
+              onNext={() => setStep(2)}
+            />
+          )}
+          {step === 2 && <Step3 creds={creds} />}
+        </div>
       </div>
     </>
   );
