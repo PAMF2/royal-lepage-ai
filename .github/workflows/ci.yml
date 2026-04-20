@@ -57,6 +57,7 @@ jobs:
           - dashboard
           - roi-calculator
           - sales-deck
+          - setup-wizard
 
     steps:
       - uses: actions/checkout@v4

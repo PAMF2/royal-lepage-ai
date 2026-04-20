@@ -480,7 +480,9 @@ function Step1({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+      <div
+        style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+      >
         <Btn
           onClick={verify}
           loading={checking}
@@ -489,6 +491,40 @@ function Step1({
         >
           Test Connections
         </Btn>
+        {allOk && (
+          <Btn
+            variant="outline"
+            onClick={() => {
+              const lines = [
+                `GHL_API_KEY=${creds.ghlApiKey}`,
+                `GHL_LOCATION_ID=${creds.ghlLocationId}`,
+                `ANTHROPIC_API_KEY=${creds.anthropicApiKey}`,
+                `ANTHROPIC_MODEL=claude-opus-4-7`,
+                `IDX_PROVIDER=${creds.idxProvider}`,
+                `IDX_API_KEY=${creds.idxApiKey}`,
+                `IDX_API_SECRET=${creds.idxApiSecret}`,
+                `ORCHESTRATOR_URL=${creds.orchestratorUrl}`,
+                `WEBHOOK_SECRET=${creds.webhookSecret}`,
+                creds.elevenLabsApiKey
+                  ? `ELEVENLABS_API_KEY=${creds.elevenLabsApiKey}`
+                  : "",
+                `REDIS_URL=redis://localhost:6379`,
+                `QUEUE_SECRET=${creds.webhookSecret}`,
+                `MONITORING_SECRET=${creds.webhookSecret}`,
+                `AGENT_LANGUAGE=bilingual`,
+              ]
+                .filter(Boolean)
+                .join("\n");
+              const blob = new Blob([lines], { type: "text/plain" });
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = ".env";
+              a.click();
+            }}
+          >
+            ↓ Download .env
+          </Btn>
+        )}
         {allOk && <Btn onClick={onNext}>Continue →</Btn>}
       </div>
     </Card>
