@@ -1,0 +1,190 @@
+# Render.com deployment — Royal LePage AI Platform
+# Deploy with: render deploy --yaml render.yaml
+# Or connect repo at dashboard.render.com and it auto-detects this file.
+
+services:
+  # ── Core AI engine ──────────────────────────────────────────
+  - type: web
+    name: rl-orchestrator
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: orchestrator
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-4-7
+      - key: GHL_API_KEY
+        sync: false
+      - key: GHL_LOCATION_ID
+        sync: false
+      - key: GHL_PIPELINE_ID
+        sync: false
+      - key: GHL_CALENDAR_ID
+        sync: false
+      - key: GHL_STAGE_NEW_LEAD
+        sync: false
+      - key: GHL_STAGE_ATTEMPTED
+        sync: false
+      - key: GHL_STAGE_CONTACTED
+        sync: false
+      - key: GHL_STAGE_QUALIFIED
+        sync: false
+      - key: GHL_STAGE_APPOINTMENT_SET
+        sync: false
+      - key: GHL_STAGE_HANDED_OFF
+        sync: false
+      - key: GHL_STAGE_NURTURE
+        sync: false
+      - key: GHL_CAMPAIGN_DRIP_7DAY
+        sync: false
+      - key: GHL_CAMPAIGN_REACTIVATION
+        sync: false
+      - key: IDX_PROVIDER
+        value: crea_ddf
+      - key: IDX_API_KEY
+        sync: false
+      - key: IDX_API_SECRET
+        sync: false
+      - key: IDX_FEED_URL
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: ELEVENLABS_FROM_PHONE
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rl-redis
+          property: connectionString
+      - key: AGENT_LANGUAGE
+        value: bilingual
+
+  # ── Queue API ────────────────────────────────────────────────
+  - type: web
+    name: rl-queue-api
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: queue
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: QUEUE_PORT
+        value: "3001"
+      - key: QUEUE_SECRET
+        sync: false
+      - key: ORCHESTRATOR_URL
+        fromService:
+          type: web
+          name: rl-orchestrator
+          property: host
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rl-redis
+          property: connectionString
+
+  # ── Queue Worker ─────────────────────────────────────────────
+  - type: worker
+    name: rl-queue-worker
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: queue
+    buildCommand: npm install && npm run build
+    startCommand: node dist/worker.js
+    envVars:
+      - key: WORKER_CONCURRENCY
+        value: "5"
+      - key: ORCHESTRATOR_URL
+        fromService:
+          type: web
+          name: rl-orchestrator
+          property: host
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rl-redis
+          property: connectionString
+      - key: ORCHESTRATOR_WEBHOOK_SECRET
+        sync: false
+
+  # ── Monitoring ───────────────────────────────────────────────
+  - type: web
+    name: rl-monitoring
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: monitoring
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: MONITORING_PORT
+        value: "3002"
+      - key: MONITORING_SECRET
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: rl-redis
+          property: connectionString
+
+  # ── Lead Scoring (cron job) ───────────────────────────────────
+  - type: cron
+    name: rl-lead-scoring
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: lead-scoring
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    schedule: "0 6 * * *"
+    envVars:
+      - key: GHL_API_KEY
+        sync: false
+      - key: GHL_LOCATION_ID
+        sync: false
+
+  # ── Reactivation (cron job) ───────────────────────────────────
+  - type: cron
+    name: rl-reactivation
+    runtime: node
+    region: oregon
+    plan: starter
+    rootDir: reactivation
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    schedule: "0 8 * * *"
+    envVars:
+      - key: GHL_API_KEY
+        sync: false
+      - key: GHL_LOCATION_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: IDX_PROVIDER
+        value: crea_ddf
+      - key: IDX_API_KEY
+        sync: false
+      - key: IDX_API_SECRET
+        sync: false
+
+databases:
+  - name: rl-redis
+    type: redis
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: allkeys-lru

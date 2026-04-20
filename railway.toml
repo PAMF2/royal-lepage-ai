@@ -1,0 +1,13 @@
+# Railway deployment — Royal LePage AI Platform
+# Deploy: railway up (from repo root)
+# Each service is deployed as a separate Railway service.
+# Set env vars via: railway variables set KEY=value
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,95 @@
+version: "3.9"
+
+# Full Royal LePage AI stack — local development
+# Usage: docker compose up --build
+# Requires: .env file at repo root (copy .env.example)
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  queue-api:
+    build:
+      context: ./queue
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      QUEUE_PORT: 3001
+      REDIS_URL: redis://redis:6379
+      ORCHESTRATOR_URL: http://orchestrator:3000
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  queue-worker:
+    build:
+      context: ./queue
+      dockerfile: Dockerfile
+    command: ["node", "dist/worker.js"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      ORCHESTRATOR_URL: http://orchestrator:3000
+      WORKER_CONCURRENCY: "5"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  monitoring:
+    build:
+      context: ./monitoring
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    env_file: .env
+    environment:
+      MONITORING_PORT: 3002
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3000"
+    env_file: .env
+    restart: unless-stopped
+
+  idx-website:
+    build:
+      context: ./idx-website
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3000"
+    env_file: .env
+    restart: unless-stopped
