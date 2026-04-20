@@ -43,6 +43,12 @@ const EMPTY: Creds = {
   elevenLabsApiKey: "",
 };
 
+function randomSecret() {
+  const arr = new Uint8Array(24);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ── Primitives ─────────────────────────────────────────────────────────────
 
 function Spinner() {
@@ -69,6 +75,7 @@ function Field({
   type = "text",
   placeholder,
   optional,
+  hint,
 }: {
   label: string;
   value: string;
@@ -76,6 +83,7 @@ function Field({
   type?: string;
   placeholder?: string;
   optional?: boolean;
+  hint?: string;
 }) {
   return (
     <div style={{ marginBottom: 14 }}>
@@ -110,6 +118,9 @@ function Field({
           fontFamily: type === "password" ? "monospace" : "inherit",
         }}
       />
+      {hint && (
+        <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>{hint}</div>
+      )}
     </div>
   );
 }
@@ -293,43 +304,51 @@ function Step1({
 }) {
   const [state, setState] = useState<"idle" | "checking" | "done">("idle");
   const [results, setResults] = useState<CheckResult[]>([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const set = (k: keyof Creds) => (v: string) => setCreds({ ...creds, [k]: v });
 
+  // Only 3 required fields
   const ready = !!(
     creds.ghlApiKey &&
     creds.ghlLocationId &&
-    creds.anthropicApiKey &&
-    creds.idxApiKey &&
-    creds.idxApiSecret &&
-    creds.orchestratorUrl &&
-    creds.webhookSecret
+    creds.anthropicApiKey
   );
 
   const allOk =
     results.length > 0 &&
-    results.filter((r) => r.name !== "ElevenLabs").every((r) => r.ok);
+    results
+      .filter((r) => !["IDX", "ElevenLabs"].includes(r.name))
+      .every((r) => r.ok);
 
   async function connect() {
+    // Auto-fill optional fields before connecting
+    const filled: Creds = {
+      ...creds,
+      webhookSecret: creds.webhookSecret || randomSecret(),
+      orchestratorUrl: creds.orchestratorUrl || window.location.origin,
+    };
+    setCreds(filled);
+
     setState("checking");
     const res = await fetch("/api/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(creds),
+      body: JSON.stringify(filled),
     });
     const data = (await res.json()) as { results: CheckResult[] };
     setResults(data.results);
 
     const ok = data.results
-      .filter((r) => r.name !== "ElevenLabs")
+      .filter((r) => !["IDX", "ElevenLabs"].includes(r.name))
       .every((r) => r.ok);
     if (ok) {
       await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creds }),
+        body: JSON.stringify({ creds: filled }),
       });
-      setTimeout(onNext, 1400);
+      setTimeout(onNext, 1200);
     }
     setState("done");
   }
@@ -341,9 +360,9 @@ function Step1({
       `ANTHROPIC_API_KEY=${creds.anthropicApiKey}`,
       `ANTHROPIC_MODEL=claude-opus-4-7`,
       `IDX_PROVIDER=${creds.idxProvider}`,
-      `IDX_API_KEY=${creds.idxApiKey}`,
-      `IDX_API_SECRET=${creds.idxApiSecret}`,
-      `ORCHESTRATOR_URL=${creds.orchestratorUrl}`,
+      creds.idxApiKey ? `IDX_API_KEY=${creds.idxApiKey}` : "",
+      creds.idxApiSecret ? `IDX_API_SECRET=${creds.idxApiSecret}` : "",
+      `ORCHESTRATOR_URL=${creds.orchestratorUrl || window.location.origin}`,
       `WEBHOOK_SECRET=${creds.webhookSecret}`,
       creds.elevenLabsApiKey
         ? `ELEVENLABS_API_KEY=${creds.elevenLabsApiKey}`
@@ -374,74 +393,68 @@ function Step1({
         Connect your accounts
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        Enter your API keys once — saved locally for future imports.
+        3 keys — saved locally so you never enter them again.
       </p>
 
-      <div
+      <Field
+        label="GoHighLevel API Key"
+        value={creds.ghlApiKey}
+        onChange={set("ghlApiKey")}
+        type="password"
+        placeholder="eyJhbGci…"
+        hint="Settings → Integrations → API Key in GoHighLevel"
+      />
+      <Field
+        label="GoHighLevel Location ID"
+        value={creds.ghlLocationId}
+        onChange={set("ghlLocationId")}
+        placeholder="abc123xyz"
+        hint="Settings → Business Info → Location ID"
+      />
+      <Field
+        label="Anthropic API Key"
+        value={creds.anthropicApiKey}
+        onChange={set("anthropicApiKey")}
+        type="password"
+        placeholder="sk-ant-…"
+        hint="console.anthropic.com → API Keys"
+      />
+
+      {/* Advanced accordion */}
+      <button
+        onClick={() => setShowAdvanced((v) => !v)}
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0 28px",
+          background: "none",
+          border: "none",
+          color: MUTED,
+          fontSize: 13,
+          cursor: "pointer",
+          padding: "4px 0 12px",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: 2,
-              color: MUTED,
-              marginBottom: 10,
-              textTransform: "uppercase",
-            }}
-          >
-            GoHighLevel
-          </div>
-          <Field
-            label="API Key"
-            value={creds.ghlApiKey}
-            onChange={set("ghlApiKey")}
-            type="password"
-            placeholder="eyJhbGci..."
-          />
-          <Field
-            label="Location ID"
-            value={creds.ghlLocationId}
-            onChange={set("ghlLocationId")}
-            placeholder="abc123"
-          />
-          <Field
-            label="Orchestrator URL"
-            value={creds.orchestratorUrl}
-            onChange={set("orchestratorUrl")}
-            placeholder="https://your-app.railway.app"
-          />
-          <Field
-            label="Webhook Secret"
-            value={creds.webhookSecret}
-            onChange={set("webhookSecret")}
-            type="password"
-            placeholder="random-32-char-string"
-          />
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: 2,
-              color: MUTED,
-              marginBottom: 10,
-              textTransform: "uppercase",
-            }}
-          >
-            AI & MLS
-          </div>
-          <Field
-            label="Anthropic API Key"
-            value={creds.anthropicApiKey}
-            onChange={set("anthropicApiKey")}
-            type="password"
-            placeholder="sk-ant-..."
-          />
+        <span
+          style={{
+            fontSize: 10,
+            transform: showAdvanced ? "rotate(90deg)" : "none",
+            display: "inline-block",
+          }}
+        >
+          ▶
+        </span>
+        Advanced (IDX · ElevenLabs · Orchestrator)
+      </button>
+
+      {showAdvanced && (
+        <div
+          style={{
+            borderLeft: `3px solid ${BORDER}`,
+            paddingLeft: 16,
+            marginBottom: 16,
+          }}
+        >
           <div style={{ marginBottom: 14 }}>
             <div
               style={{
@@ -471,28 +484,54 @@ function Step1({
               <option value="simplyrets">SimplyRETS (US)</option>
             </select>
           </div>
-          <Field
-            label="IDX API Key"
-            value={creds.idxApiKey}
-            onChange={set("idxApiKey")}
-            type="password"
-          />
-          <Field
-            label="IDX API Secret"
-            value={creds.idxApiSecret}
-            onChange={set("idxApiSecret")}
-            type="password"
-          />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0 16px",
+            }}
+          >
+            <Field
+              label="IDX API Key"
+              value={creds.idxApiKey}
+              onChange={set("idxApiKey")}
+              type="password"
+              optional
+            />
+            <Field
+              label="IDX API Secret"
+              value={creds.idxApiSecret}
+              onChange={set("idxApiSecret")}
+              type="password"
+              optional
+            />
+          </div>
           <Field
             label="ElevenLabs API Key"
             value={creds.elevenLabsApiKey}
             onChange={set("elevenLabsApiKey")}
             type="password"
             optional
-            placeholder="Voice AI — optional"
+            placeholder="Voice AI"
+          />
+          <Field
+            label="Orchestrator URL"
+            value={creds.orchestratorUrl}
+            onChange={set("orchestratorUrl")}
+            placeholder="https://your-app.railway.app"
+            optional
+            hint="Auto-detected from browser URL if left blank"
+          />
+          <Field
+            label="Webhook Secret"
+            value={creds.webhookSecret}
+            onChange={set("webhookSecret")}
+            type="password"
+            optional
+            hint="Auto-generated if left blank"
           />
         </div>
-      </div>
+      )}
 
       {results.length > 0 && (
         <div
@@ -532,7 +571,7 @@ function Step1({
               ↓ Download .env
             </Btn>
             <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>
-              ✓ All systems connected — activating GHL…
+              ✓ Connected — setting up GoHighLevel…
             </span>
           </>
         )}
@@ -541,7 +580,7 @@ function Step1({
   );
 }
 
-// ── Step 2: Activate ───────────────────────────────────────────────────────
+// ── Step 2: Activate (fully automatic) ────────────────────────────────────
 
 function Step2({
   creds,
@@ -556,45 +595,9 @@ function Step2({
   const [steps, setSteps] = useState<SetupStep[]>([]);
   const activated = useRef(false);
 
-  useEffect(() => {
-    if (activated.current) return;
-    activated.current = true;
-
-    if (alreadyDone) {
-      setState("done");
-      setTimeout(onNext, 800);
-      return;
-    }
-
-    (async () => {
-      const res = await fetch("/api/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(creds),
-      });
-      const data = (await res.json()) as { ok: boolean; steps: SetupStep[] };
-      setSteps(data.steps);
-
-      if (data.ok) {
-        await fetch("/api/config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ghlConfigured: true }),
-        });
-        setState("done");
-        setTimeout(onNext, 1200);
-      } else {
-        setState("error");
-      }
-    })();
-  }, [alreadyDone, creds, onNext]);
-
-  async function retry() {
+  const run = useCallback(async () => {
     setState("running");
     setSteps([]);
-    activated.current = false;
-    // re-trigger by resetting ref and calling manually
-    activated.current = true;
     const res = await fetch("/api/setup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -609,11 +612,22 @@ function Step2({
         body: JSON.stringify({ ghlConfigured: true }),
       });
       setState("done");
-      setTimeout(onNext, 1200);
+      setTimeout(onNext, 1000);
     } else {
       setState("error");
     }
-  }
+  }, [creds, onNext]);
+
+  useEffect(() => {
+    if (activated.current) return;
+    activated.current = true;
+    if (alreadyDone) {
+      setState("done");
+      setTimeout(onNext, 600);
+      return;
+    }
+    run();
+  }, [alreadyDone, onNext, run]);
 
   const ITEMS = [
     {
@@ -648,10 +662,12 @@ function Step2({
           color: "#111",
         }}
       >
-        Activating GoHighLevel
+        {state === "done" ? "GoHighLevel Ready ✓" : "Setting up GoHighLevel…"}
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        Setting up your pipeline, webhooks, custom fields, and campaigns…
+        {state === "done"
+          ? "Pipeline, webhooks, custom fields, and campaigns configured."
+          : "Creating your pipeline, webhooks, custom fields, and campaigns."}
       </p>
 
       <div
@@ -716,89 +732,95 @@ function Step2({
         })}
       </div>
 
-      <div style={{ display: "flex", gap: 12 }}>
-        {state === "running" && (
-          <span
-            style={{
-              fontSize: 13,
-              color: MUTED,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <Spinner /> Configuring GoHighLevel…
-          </span>
-        )}
-        {state === "done" && (
-          <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>
-            ✓ GoHighLevel configured — proceeding to import…
-          </span>
-        )}
-        {state === "error" && (
-          <Btn onClick={retry} variant="ghost">
-            Retry
-          </Btn>
-        )}
-      </div>
+      {state === "running" && (
+        <span
+          style={{
+            fontSize: 13,
+            color: MUTED,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <Spinner /> Configuring…
+        </span>
+      )}
+      {state === "done" && (
+        <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>
+          ✓ Done — loading import screen…
+        </span>
+      )}
+      {state === "error" && (
+        <Btn onClick={run} variant="ghost">
+          Retry
+        </Btn>
+      )}
     </div>
   );
 }
 
-// ── Step 3: Import ─────────────────────────────────────────────────────────
+// ── Step 3: Import (auto-starts on file drop) ──────────────────────────────
 
 function Step3({ creds }: { creds: Creds }) {
   const [csv, setCsv] = useState("");
   const [preview, setPreview] = useState<string[][]>([]);
   const [state, setState] = useState<"idle" | "importing" | "done">("idle");
   const [prog, setProg] = useState({ total: 0, done: 0, errors: 0, log: "" });
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const loadFile = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      setCsv(text);
-      const lines = text.trim().split("\n").slice(0, 6);
-      setPreview(
-        lines.map((l) =>
-          l.split(",").map((c) => c.replace(/^"|"$/g, "").trim()),
-        ),
-      );
-    };
-    reader.readAsText(file);
-  }, []);
-
-  async function startImport() {
-    setState("importing");
-    await fetch("/api/migrate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ creds, csv }),
-    });
-
-    const es = new EventSource("/api/progress");
-    es.onmessage = (e) => {
-      const d = JSON.parse(e.data) as {
-        total: number;
-        done: number;
-        errors: number;
-        newLogs: string[];
-        finished?: boolean;
-        running: boolean;
+  const startImport = useCallback(
+    async (csvText: string) => {
+      setState("importing");
+      await fetch("/api/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creds, csv: csvText }),
+      });
+      const es = new EventSource("/api/progress");
+      es.onmessage = (e) => {
+        const d = JSON.parse(e.data) as {
+          total: number;
+          done: number;
+          errors: number;
+          newLogs: string[];
+          finished?: boolean;
+          running: boolean;
+        };
+        setProg((p) => ({
+          total: d.total,
+          done: d.done,
+          errors: d.errors,
+          log: d.newLogs.at(-1) ?? p.log,
+        }));
+        if (d.finished || !d.running) {
+          es.close();
+          setState("done");
+        }
       };
-      setProg((p) => ({
-        total: d.total,
-        done: d.done,
-        errors: d.errors,
-        log: d.newLogs.at(-1) ?? p.log,
-      }));
-      if (d.finished || !d.running) {
-        es.close();
-        setState("done");
-      }
-    };
-  }
+    },
+    [creds],
+  );
+
+  const loadFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setCsv(text);
+        const lines = text.trim().split("\n").slice(0, 6);
+        setPreview(
+          lines.map((l) =>
+            l.split(",").map((c) => c.replace(/^"|"$/g, "").trim()),
+          ),
+        );
+        // Auto-start import immediately after file loads
+        startImport(text);
+      };
+      reader.readAsText(file);
+    },
+    [startImport],
+  );
 
   const total = csv ? csv.trim().split("\n").length - 1 : 0;
   const pct = prog.total > 0 ? Math.round((prog.done / prog.total) * 100) : 0;
@@ -842,7 +864,7 @@ function Step3({ creds }: { creds: Creds }) {
             Open GoHighLevel →
           </a>
           <a
-            href={creds.orchestratorUrl + "/health"}
+            href={(creds.orchestratorUrl || window.location.origin) + "/health"}
             target="_blank"
             rel="noreferrer"
             style={{
@@ -895,7 +917,7 @@ function Step3({ creds }: { creds: Creds }) {
         Import Leads
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        Drop your lead database CSV. Up to 100,000 contacts. Needs at least:{" "}
+        Drop your CSV — import starts automatically. Needs at least:{" "}
         <code
           style={{ background: "#f3f4f6", padding: "1px 6px", borderRadius: 4 }}
         >
@@ -903,38 +925,43 @@ function Step3({ creds }: { creds: Creds }) {
         </code>
       </p>
 
-      {!csv ? (
+      {state === "idle" && (
         <div
           onDrop={(e) => {
             e.preventDefault();
+            setDragOver(false);
             if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
           }}
-          onDragOver={(e) => e.preventDefault()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
           onClick={() => fileRef.current?.click()}
           style={{
-            border: `2px dashed ${BORDER}`,
+            border: `2px dashed ${dragOver ? RED : BORDER}`,
             borderRadius: 12,
-            padding: "52px 24px",
+            padding: "64px 24px",
             textAlign: "center",
             cursor: "pointer",
-            background: "#fafafa",
-            transition: "border-color 0.2s",
+            background: dragOver ? "#fff5f5" : "#fafafa",
+            transition: "all 0.2s",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = RED)}
-          onMouseLeave={(e) => (e.currentTarget.style.borderColor = BORDER)}
         >
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📂</div>
           <div
             style={{
               fontWeight: 700,
-              fontSize: 16,
+              fontSize: 18,
               color: "#374151",
               marginBottom: 4,
             }}
           >
             Drop CSV here or click to browse
           </div>
-          <div style={{ fontSize: 13, color: MUTED }}>CSV · up to 50 MB</div>
+          <div style={{ fontSize: 13, color: MUTED }}>
+            Import starts automatically · up to 50 MB
+          </div>
           <input
             ref={fileRef}
             type="file"
@@ -945,128 +972,114 @@ function Step3({ creds }: { creds: Creds }) {
             }}
           />
         </div>
-      ) : (
+      )}
+
+      {state === "importing" && (
         <>
-          <div
-            style={{
-              overflowX: "auto",
-              marginBottom: 20,
-              borderRadius: 8,
-              border: `1px solid ${BORDER}`,
-            }}
-          >
-            <table
+          {preview.length > 0 && (
+            <div
               style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
+                overflowX: "auto",
+                marginBottom: 20,
+                borderRadius: 8,
+                border: `1px solid ${BORDER}`,
               }}
             >
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  {preview[0]?.map((h, i) => (
-                    <th
-                      key={i}
-                      style={{
-                        padding: "8px 14px",
-                        textAlign: "left",
-                        borderBottom: `1px solid ${BORDER}`,
-                        color: MUTED,
-                        fontWeight: 600,
-                        fontSize: 11,
-                        letterSpacing: 1,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.slice(1).map((row, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                    {row.map((cell, j) => (
-                      <td
-                        key={j}
-                        style={{ padding: "8px 14px", color: "#374151" }}
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#f9fafb" }}>
+                    {preview[0]?.map((h, i) => (
+                      <th
+                        key={i}
+                        style={{
+                          padding: "8px 14px",
+                          textAlign: "left",
+                          borderBottom: `1px solid ${BORDER}`,
+                          color: MUTED,
+                          fontWeight: 600,
+                          fontSize: 11,
+                          letterSpacing: 1,
+                          textTransform: "uppercase",
+                        }}
                       >
-                        {cell}
-                      </td>
+                        {h}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>
-            Showing first 5 rows · <strong>{total.toLocaleString()}</strong>{" "}
-            total contacts
-          </div>
-
-          {state === "importing" && (
-            <div style={{ marginBottom: 20 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 13,
-                  marginBottom: 6,
-                }}
-              >
-                <span style={{ color: MUTED }}>Importing…</span>
-                <span style={{ fontWeight: 700 }}>
-                  {prog.done.toLocaleString()} / {prog.total.toLocaleString()} (
-                  {pct}%)
-                </span>
-              </div>
-              <div
-                style={{
-                  height: 8,
-                  background: "#e5e7eb",
-                  borderRadius: 4,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${pct}%`,
-                    background: RED,
-                    borderRadius: 4,
-                    transition: "width 0.5s",
-                  }}
-                />
-              </div>
-              {prog.log && (
-                <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
-                  {prog.log}
-                </div>
-              )}
+                </thead>
+                <tbody>
+                  {preview.slice(1).map((row, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                      {row.map((cell, j) => (
+                        <td
+                          key={j}
+                          style={{ padding: "8px 14px", color: "#374151" }}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-
-          <div style={{ display: "flex", gap: 12 }}>
-            {state === "idle" && (
-              <Btn
-                variant="ghost"
-                onClick={() => {
-                  setCsv("");
-                  setPreview([]);
-                }}
-                disabled={state !== "idle"}
-              >
-                Change file
-              </Btn>
-            )}
-            <Btn
-              onClick={startImport}
-              loading={state === "importing"}
-              disabled={state === "importing"}
-            >
-              Import {total.toLocaleString()} Leads →
-            </Btn>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 12 }}>
+            <strong>{total.toLocaleString()}</strong> contacts detected —
+            importing now…
           </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 13,
+              marginBottom: 6,
+            }}
+          >
+            <span
+              style={{
+                color: MUTED,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Spinner /> Importing…
+            </span>
+            <span style={{ fontWeight: 700 }}>
+              {prog.done.toLocaleString()} / {prog.total.toLocaleString()} (
+              {pct}%)
+            </span>
+          </div>
+          <div
+            style={{
+              height: 8,
+              background: "#e5e7eb",
+              borderRadius: 4,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${pct}%`,
+                background: RED,
+                borderRadius: 4,
+                transition: "width 0.5s",
+              }}
+            />
+          </div>
+          {prog.log && (
+            <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>
+              {prog.log}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -1081,7 +1094,6 @@ export default function Wizard() {
   const [ghlAlreadyDone, setGhlAlreadyDone] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load saved config on mount
   useEffect(() => {
     (async () => {
       try {
@@ -1091,15 +1103,13 @@ export default function Wizard() {
           creds?: Record<string, string>;
           ghlConfigured?: boolean;
         };
-
         if (data.exists && data.creds) {
           setCreds(data.creds as unknown as Creds);
-
           if (data.ghlConfigured) {
             setGhlAlreadyDone(true);
-            setStep(2); // skip straight to import
+            setStep(2);
           } else {
-            setStep(1); // skip credentials, go to activation
+            setStep(1);
           }
         }
       } catch {}
@@ -1127,7 +1137,6 @@ export default function Wizard() {
     <>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } } * { box-sizing: border-box; }`}</style>
 
-      {/* Header */}
       <div
         style={{
           background: RED,
@@ -1176,7 +1185,7 @@ export default function Wizard() {
       </div>
 
       <div
-        style={{ maxWidth: 780, margin: "40px auto", padding: "0 24px 80px" }}
+        style={{ maxWidth: 680, margin: "40px auto", padding: "0 24px 80px" }}
       >
         <StepBar step={step} />
 
