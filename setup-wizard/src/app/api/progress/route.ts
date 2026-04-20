@@ -1,4 +1,4 @@
-import { progress } from "../migrate/route";
+import { progress } from "@/lib/progress";
 
 export const dynamic = "force-dynamic";
 

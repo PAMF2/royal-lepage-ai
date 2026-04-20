@@ -1,15 +1,7 @@
 import { type NextRequest } from "next/server";
 import { ghlFetch, csvToContacts } from "@/lib/ghl";
 import type { Creds } from "@/lib/ghl";
-
-// In-memory progress store (single-server; fine for wizard use)
-export const progress: {
-  total: number;
-  done: number;
-  errors: number;
-  running: boolean;
-  log: string[];
-} = { total: 0, done: 0, errors: 0, running: false, log: [] };
+import { progress } from "@/lib/progress";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

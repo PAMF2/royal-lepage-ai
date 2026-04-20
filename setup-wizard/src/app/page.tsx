@@ -324,12 +324,12 @@ function Step1({
       .filter((r) => r.name !== "ElevenLabs")
       .every((r) => r.ok);
     if (ok) {
-      // Persist credentials
       await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ creds }),
       });
+      setTimeout(onNext, 1400);
     }
     setState("done");
   }
@@ -509,16 +509,31 @@ function Step1({
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Btn onClick={connect} loading={state === "checking"} disabled={!ready}>
-          {state === "done" && !allOk ? "Retry Connection" : "Connect →"}
-        </Btn>
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        {!allOk && (
+          <Btn
+            onClick={connect}
+            loading={state === "checking"}
+            disabled={!ready}
+          >
+            {state === "done" ? "Retry Connection" : "Connect →"}
+          </Btn>
+        )}
         {allOk && (
           <>
             <Btn variant="ghost" onClick={downloadEnv}>
               ↓ Download .env
             </Btn>
-            <Btn onClick={onNext}>Next: Activate GHL →</Btn>
+            <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>
+              ✓ All systems connected — activating GHL…
+            </span>
           </>
         )}
       </div>
@@ -537,21 +552,49 @@ function Step2({
   alreadyDone: boolean;
   onNext: () => void;
 }) {
-  const [state, setState] = useState<"idle" | "running" | "done">(
-    alreadyDone ? "done" : "idle",
-  );
+  const [state, setState] = useState<"running" | "done" | "error">("running");
   const [steps, setSteps] = useState<SetupStep[]>([]);
+  const activated = useRef(false);
 
-  // Auto-advance if already configured
   useEffect(() => {
-    if (alreadyDone) {
-      const t = setTimeout(onNext, 800);
-      return () => clearTimeout(t);
-    }
-  }, [alreadyDone, onNext]);
+    if (activated.current) return;
+    activated.current = true;
 
-  async function activate() {
+    if (alreadyDone) {
+      setState("done");
+      setTimeout(onNext, 800);
+      return;
+    }
+
+    (async () => {
+      const res = await fetch("/api/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creds),
+      });
+      const data = (await res.json()) as { ok: boolean; steps: SetupStep[] };
+      setSteps(data.steps);
+
+      if (data.ok) {
+        await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ghlConfigured: true }),
+        });
+        setState("done");
+        setTimeout(onNext, 1200);
+      } else {
+        setState("error");
+      }
+    })();
+  }, [alreadyDone, creds, onNext]);
+
+  async function retry() {
     setState("running");
+    setSteps([]);
+    activated.current = false;
+    // re-trigger by resetting ref and calling manually
+    activated.current = true;
     const res = await fetch("/api/setup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -559,29 +602,41 @@ function Step2({
     });
     const data = (await res.json()) as { ok: boolean; steps: SetupStep[] };
     setSteps(data.steps);
-
     if (data.ok) {
       await fetch("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ghlConfigured: true }),
       });
+      setState("done");
+      setTimeout(onNext, 1200);
+    } else {
+      setState("error");
     }
-    setState("done");
   }
 
-  const allOk = steps.every((s) => s.ok);
-
-  if (alreadyDone && state !== "done") {
-    return (
-      <div style={{ textAlign: "center", padding: "40px 0" }}>
-        <Spinner />
-        <p style={{ color: MUTED, marginTop: 12 }}>
-          GoHighLevel already configured — skipping…
-        </p>
-      </div>
-    );
-  }
+  const ITEMS = [
+    {
+      icon: "📋",
+      label: "Custom Fields",
+      desc: "homie_score · LPMAMA · IDX tracking",
+    },
+    {
+      icon: "🔀",
+      label: "Pipeline",
+      desc: "New → Attempted → Contacted → Qualified → Booked → Closed",
+    },
+    {
+      icon: "🔗",
+      label: "Webhooks",
+      desc: "ContactCreate + InboundMessage → orchestrator",
+    },
+    {
+      icon: "📢",
+      label: "Campaigns",
+      desc: "7-Day Drip · Reactivation · Reminders · Nurture",
+    },
+  ];
 
   return (
     <div>
@@ -593,11 +648,10 @@ function Step2({
           color: "#111",
         }}
       >
-        Activate GoHighLevel
+        Activating GoHighLevel
       </h2>
       <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 14 }}>
-        One click creates your pipeline, webhooks, custom fields, and campaigns.
-        Safe to re-run.
+        Setting up your pipeline, webhooks, custom fields, and campaigns…
       </p>
 
       <div
@@ -608,28 +662,7 @@ function Step2({
           marginBottom: 24,
         }}
       >
-        {[
-          {
-            icon: "📋",
-            label: "Custom Fields",
-            desc: "homie_score · LPMAMA · IDX tracking",
-          },
-          {
-            icon: "🔀",
-            label: "Pipeline",
-            desc: "New → Attempted → Contacted → Qualified → Booked → Closed",
-          },
-          {
-            icon: "🔗",
-            label: "Webhooks",
-            desc: "ContactCreate + InboundMessage → orchestrator",
-          },
-          {
-            icon: "📢",
-            label: "Campaigns",
-            desc: "7-Day Drip · Reactivation · Reminders · Nurture",
-          },
-        ].map((item) => {
+        {ITEMS.map((item) => {
           const done = steps.find((s) => s.label === item.label);
           return (
             <div
@@ -684,19 +717,27 @@ function Step2({
       </div>
 
       <div style={{ display: "flex", gap: 12 }}>
-        {state !== "done" && (
-          <Btn onClick={activate} loading={state === "running"} full>
-            Activate GoHighLevel →
-          </Btn>
+        {state === "running" && (
+          <span
+            style={{
+              fontSize: 13,
+              color: MUTED,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Spinner /> Configuring GoHighLevel…
+          </span>
         )}
-        {state === "done" && !allOk && (
-          <Btn onClick={activate} variant="ghost">
+        {state === "done" && (
+          <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>
+            ✓ GoHighLevel configured — proceeding to import…
+          </span>
+        )}
+        {state === "error" && (
+          <Btn onClick={retry} variant="ghost">
             Retry
-          </Btn>
-        )}
-        {state === "done" && allOk && (
-          <Btn onClick={onNext} full>
-            Next: Import Leads →
           </Btn>
         )}
       </div>
