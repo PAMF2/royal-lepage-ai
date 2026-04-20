@@ -1,0 +1,14 @@
+{
+  "name": "royal-lepage-reactivation",
+  "version": "1.0.0",
+  "description": "Scheduled reactivation engine — re-engages dormant leads with personalized listings and price drop triggers",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
