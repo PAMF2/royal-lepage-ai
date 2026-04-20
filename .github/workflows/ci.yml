@@ -84,6 +84,34 @@ jobs:
           ANTHROPIC_API_KEY: dummy
           NEXT_PUBLIC_GHL_LOCATION_ID: dummy
 
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        module:
+          - lead-scoring
+          - orchestrator
+          - dashboard
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ${{ matrix.module }}/package.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.module }}
+        run: npm install
+
+      - name: Run tests
+        working-directory: ${{ matrix.module }}
+        run: npm test
+
   lint:
     name: Env Check
     runs-on: ubuntu-latest
