@@ -1,0 +1,14 @@
+{
+  "name": "royal-lepage-ghl-setup",
+  "version": "1.0.0",
+  "description": "One-time GHL setup script — creates pipeline, webhooks, and campaigns",
+  "type": "module",
+  "scripts": {
+    "setup": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
