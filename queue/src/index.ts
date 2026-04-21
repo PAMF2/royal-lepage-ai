@@ -4,6 +4,7 @@
  * Replaces direct orchestrator calls for 100k+ lead scale.
  */
 import { Queue } from "bullmq";
+import { createServer } from "http";
 import { createConnection } from "./redis.js";
 
 const connection = createConnection();
@@ -64,28 +65,20 @@ function getPriority(body: unknown): number {
   return 10;
 }
 
-const server = Bun?.serve
-  ? Bun.serve({ port: Number(PORT), fetch: handleRequest })
-  : null;
-
-if (!server) {
-  // Node.js fallback using http
-  const { createServer } = await import("http");
-  createServer(async (req, res) => {
-    const body = await new Promise<Buffer>((resolve) => {
-      const chunks: Buffer[] = [];
-      req.on("data", (c) => chunks.push(c));
-      req.on("end", () => resolve(Buffer.concat(chunks)));
-    });
-    const request = new Request(`http://localhost${req.url}`, {
-      method: req.method,
-      headers: req.headers as HeadersInit,
-      body: req.method !== "GET" ? body : undefined,
-    });
-    const response = await handleRequest(request);
-    res.writeHead(response.status, Object.fromEntries(response.headers));
-    res.end(await response.text());
-  }).listen(Number(PORT));
-}
+createServer(async (req, res) => {
+  const body = await new Promise<Buffer>((resolve) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+  const request = new Request(`http://localhost${req.url}`, {
+    method: req.method,
+    headers: req.headers as HeadersInit,
+    body: req.method !== "GET" ? new Uint8Array(body) : undefined,
+  });
+  const response = await handleRequest(request);
+  res.writeHead(response.status, Object.fromEntries(response.headers));
+  res.end(await response.text());
+}).listen(Number(PORT));
 
 console.log(`Queue API listening on port ${PORT}`);
