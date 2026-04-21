@@ -176,7 +176,7 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function run() {
+export async function run() {
   console.log(
     `\nReactivation engine starting (dormant threshold: ${DORMANT_DAYS} days)...\n`,
   );
@@ -228,7 +228,16 @@ async function run() {
   console.log(`\n\nDone. Reactivated: ${reactivated} | Failed: ${failed}`);
 }
 
-run().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Only run directly when this file is the entry point, not when imported as a module.
+const isMain =
+  process.argv[1] &&
+  new URL(import.meta.url).pathname.endsWith(
+    process.argv[1].replace(/\\/g, "/").split("/").pop()!,
+  );
+
+if (isMain) {
+  run().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

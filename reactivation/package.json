@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "start:prod": "node dist/index.js",
+    "scheduler": "node dist/scheduler.js",
     "test": "vitest run"
   },
   "devDependencies": {

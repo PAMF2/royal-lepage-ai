@@ -93,3 +93,17 @@ services:
       - "3004:3000"
     env_file: .env
     restart: unless-stopped
+
+  reactivation-scheduler:
+    build:
+      context: ./reactivation
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      REACTIVATION_INTERVAL_HOURS: "24"
+    depends_on:
+      redis:
+        condition: service_healthy
+      queue-api:
+        condition: service_started
+    restart: on-failure
