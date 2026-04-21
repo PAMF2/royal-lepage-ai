@@ -4,6 +4,8 @@
  * Usage: npx tsx src/verify.ts
  */
 
+export {};
+
 type Result = { name: string; ok: boolean; detail: string };
 const results: Result[] = [];
 

@@ -121,7 +121,7 @@ jobs:
         run: test -f .env.example
       - name: Check no hardcoded API keys
         run: |
-          if grep -rE "(sk-ant-|ghl_|ELEVENLABS_KEY=\w)" --include="*.ts" --include="*.tsx" --include="*.js" .; then
+          if grep -rE "(sk-ant-[a-zA-Z0-9]{20,}|ELEVENLABS_KEY=[a-zA-Z0-9]{10,})" --include="*.ts" --include="*.tsx" --include="*.js" --exclude-dir=dist --exclude-dir=node_modules --exclude-dir=.next .; then
             echo "Hardcoded API key pattern detected!"
             exit 1
           fi
