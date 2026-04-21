@@ -13,6 +13,39 @@ interface Inputs {
   platformMonthlyCAD: number;
 }
 
+// --- Property Investment Calculator types ---
+
+interface PropertyInputs {
+  price: number;
+  downPayment: number;
+  monthlyRent: number;
+  expenses: number;
+}
+
+interface PropertyResults {
+  inputs: {
+    price: number;
+    downPayment: number;
+    downPercent: number;
+    loanAmount: number;
+    monthlyRent: number;
+    expenses: number;
+    rate: number;
+    amortizationYears: number;
+  };
+  cmhc: { required: boolean; premium: number; note: string };
+  monthly: {
+    mortgagePayment: number;
+    expenses: number;
+    totalOutflow: number;
+    rent: number;
+    cashflow: number;
+  };
+  annual: { noi: number; cashflow: number };
+  metrics: { capRate: number; cashOnCash: number; grossYield: number };
+  verdict: string;
+}
+
 interface Results {
   currentDealsPerYear: number;
   aiDealsPerYear: number;
@@ -135,6 +168,253 @@ function MetricCard({
       {sub && (
         <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>{sub}</div>
       )}
+    </div>
+  );
+}
+
+function PropertyCalculator() {
+  const [propInputs, setPropInputs] = useState<PropertyInputs>({
+    price: 750000,
+    downPayment: 150000,
+    monthlyRent: 3200,
+    expenses: 600,
+  });
+  const [propResults, setPropResults] = useState<PropertyResults | null>(null);
+  const [propLoading, setPropLoading] = useState(false);
+  const [propError, setPropError] = useState<string | null>(null);
+
+  async function runPropertyCalc() {
+    setPropLoading(true);
+    setPropError(null);
+    try {
+      const res = await fetch("/api/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(propInputs),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPropError(data.error ?? "Calculation failed");
+      } else {
+        setPropResults(data as PropertyResults);
+      }
+    } catch {
+      setPropError("Network error — please try again");
+    } finally {
+      setPropLoading(false);
+    }
+  }
+
+  function setProp(key: keyof PropertyInputs) {
+    return (v: number) => setPropInputs((prev) => ({ ...prev, [key]: v }));
+  }
+
+  return (
+    <div
+      style={{
+        maxWidth: 960,
+        margin: "0 auto",
+        padding: "0 24px 48px",
+      }}
+    >
+      <h2 style={{ fontSize: 20, color: "#111", margin: "40px 0 20px" }}>
+        Property Investment Calculator
+      </h2>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 32,
+        }}
+      >
+        {/* Property inputs */}
+        <div
+          style={{
+            background: "white",
+            borderRadius: 12,
+            padding: 28,
+            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          }}
+        >
+          <Slider
+            label="Purchase price"
+            value={propInputs.price}
+            min={200000}
+            max={2000000}
+            step={25000}
+            onChange={setProp("price")}
+            format={(v) => "$" + v.toLocaleString("en-CA") + " CAD"}
+          />
+          <Slider
+            label="Down payment"
+            value={propInputs.downPayment}
+            min={10000}
+            max={500000}
+            step={5000}
+            onChange={setProp("downPayment")}
+            format={(v) =>
+              "$" +
+              v.toLocaleString("en-CA") +
+              " CAD (" +
+              Math.round((v / propInputs.price) * 100) +
+              "%)"
+            }
+          />
+          <Slider
+            label="Monthly rental income"
+            value={propInputs.monthlyRent}
+            min={500}
+            max={8000}
+            step={100}
+            onChange={setProp("monthlyRent")}
+            format={(v) => "$" + v.toLocaleString("en-CA") + " CAD"}
+          />
+          <Slider
+            label="Monthly expenses (tax, insurance, maintenance)"
+            value={propInputs.expenses}
+            min={0}
+            max={3000}
+            step={50}
+            onChange={setProp("expenses")}
+            format={(v) => "$" + v.toLocaleString("en-CA") + " CAD"}
+          />
+          <button
+            onClick={runPropertyCalc}
+            disabled={propLoading}
+            style={{
+              marginTop: 8,
+              width: "100%",
+              padding: "12px 0",
+              background: propLoading ? "#999" : RL_RED,
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: propLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {propLoading ? "Calculating…" : "Calculate"}
+          </button>
+          {propError && (
+            <div
+              style={{
+                marginTop: 12,
+                color: RL_RED,
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {propError}
+            </div>
+          )}
+        </div>
+
+        {/* Property results */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {propResults ? (
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <MetricCard
+                  label="Monthly cashflow"
+                  value={
+                    (propResults.monthly.cashflow >= 0 ? "+" : "") +
+                    "$" +
+                    propResults.monthly.cashflow.toLocaleString("en-CA") +
+                    " CAD"
+                  }
+                  sub="rent − mortgage − expenses"
+                  highlight={propResults.monthly.cashflow > 0}
+                />
+                <MetricCard
+                  label="Cap rate"
+                  value={propResults.metrics.capRate.toFixed(2) + "%"}
+                  sub="NOI / purchase price"
+                />
+                <MetricCard
+                  label="Cash-on-cash return"
+                  value={propResults.metrics.cashOnCash.toFixed(2) + "%"}
+                  sub="annual cashflow / down payment"
+                />
+                <MetricCard
+                  label="Gross yield"
+                  value={propResults.metrics.grossYield.toFixed(2) + "%"}
+                  sub="annual rent / purchase price"
+                />
+              </div>
+
+              <div
+                style={{
+                  background: "white",
+                  borderRadius: 10,
+                  padding: "16px 22px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                  fontSize: 14,
+                  color: "#444",
+                }}
+              >
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Monthly mortgage:</strong> $
+                  {propResults.monthly.mortgagePayment.toLocaleString("en-CA")}{" "}
+                  CAD &nbsp;·&nbsp;
+                  <strong>Rate:</strong> {propResults.inputs.rate}%
+                  &nbsp;·&nbsp;
+                  <strong>Amort:</strong> {propResults.inputs.amortizationYears}
+                  yr
+                </div>
+                {propResults.cmhc.required && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#b45309",
+                      background: "#fef3c7",
+                      borderRadius: 6,
+                      padding: "8px 12px",
+                      marginBottom: 8,
+                    }}
+                  >
+                    {propResults.cmhc.note} Premium: $
+                    {propResults.cmhc.premium.toLocaleString("en-CA")} CAD
+                  </div>
+                )}
+                <div
+                  style={{
+                    fontWeight: 700,
+                    color:
+                      propResults.metrics.capRate >= 5
+                        ? "#166534"
+                        : propResults.metrics.capRate >= 3
+                          ? "#92400e"
+                          : RL_RED,
+                  }}
+                >
+                  {propResults.verdict}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                background: "white",
+                borderRadius: 12,
+                padding: 40,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+                color: "#999",
+                fontSize: 14,
+                textAlign: "center",
+              }}
+            >
+              Adjust the sliders and click Calculate to see investment metrics.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -370,6 +650,16 @@ export default function ROICalculator() {
           </div>
         </div>
       </div>
+
+      {/* Divider */}
+      <div
+        style={{
+          borderTop: "2px solid #e5e5e5",
+          margin: "0 40px",
+        }}
+      />
+
+      <PropertyCalculator />
     </div>
   );
 }

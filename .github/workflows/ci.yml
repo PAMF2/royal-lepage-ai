@@ -94,6 +94,8 @@ jobs:
           - lead-scoring
           - orchestrator
           - dashboard
+          - reactivation
+          - data-migration
 
     steps:
       - uses: actions/checkout@v4
