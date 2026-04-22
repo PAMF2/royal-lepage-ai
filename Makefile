@@ -1,7 +1,7 @@
 # Royal LePage AI Platform — Makefile
 # Usage: make <target>
 
-.PHONY: help setup verify migrate dev build push health logs score reactivate
+.PHONY: help setup verify migrate dev build test push health logs score reactivate
 
 help:
 	@echo ""
@@ -90,3 +90,16 @@ health:
 
 logs:
 	docker compose logs -f orchestrator
+
+# ── Tests ─────────────────────────────────────────────────────
+
+TEST_MODULES = orchestrator queue reactivation lead-scoring data-migration \
+               ghl-setup mcp-server elevenlabs-mcp idx-mcp homie-admin-mcp \
+               showings-mcp vendor-mcp deal-analysis-mcp monitoring setup-wizard
+
+test:
+	@for mod in $(TEST_MODULES); do \
+		echo "→ Testing $$mod..."; \
+		(cd $$mod && npm install --silent && npm test) || exit 1; \
+	done
+	@echo "✓ All tests passed."

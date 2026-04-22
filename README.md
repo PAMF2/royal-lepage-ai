@@ -1,5 +1,7 @@
 # Royal LePage — AI Lead Management Platform
 
+![CI](https://github.com/PAMF2/royal-lepage-ai/actions/workflows/ci.yml/badge.svg)
+
 Full Verse.ai replacement + integrated brokerage AI stack.  
 Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 
@@ -77,6 +79,30 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 | SMS phone number in GHL | Outbound SMS to leads |
 | ElevenLabs API key *(optional)* | Voice AI outbound calls |
 | ShowingTime API key *(optional)* | Showing management — falls back to GHL calendar |
+
+---
+
+## Quickstart
+
+```bash
+# 1. Clone and copy env
+git clone https://github.com/PAMF2/royal-lepage-ai
+cp .env.example .env   # fill in GHL_API_KEY, ANTHROPIC_API_KEY, IDX_API_KEY
+
+# 2. One-time GHL setup (creates pipeline, webhooks, custom fields)
+make setup
+
+# 3. Import leads from CSV
+make migrate LEADS_FILE=leads.csv
+
+# 4. Start full stack
+make dev               # runs all services via Docker Compose
+
+# 5. Run all tests
+make test
+```
+
+Or use the no-terminal setup wizard at `http://localhost:3000` after `make dev`.
 
 ---
 
