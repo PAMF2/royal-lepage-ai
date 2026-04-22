@@ -91,9 +91,8 @@ test("Next button is disabled on last slide", async ({ page }) => {
 test("dot navigation jumps to correct slide", async ({ page }) => {
   await page.goto(BASE);
 
-  const dots = page.locator(
-    "div[style*='border-bottom'] div[style*='gap: 8px'] button",
-  );
+  // dot buttons have no text content; Prev/Next buttons do
+  const dots = page.locator("button").filter({ hasNotText: /←|→/ });
   await dots.nth(8).click();
 
   await expect(page.getByText("VS VERSE.AI")).toBeVisible();

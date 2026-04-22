@@ -80,9 +80,9 @@ test("results render after mocked POST /api/calculate", async ({ page }) => {
   await expect(page.getByText("Monthly cashflow")).toBeVisible({
     timeout: 5000,
   });
-  await expect(page.getByText("Cap rate")).toBeVisible();
+  await expect(page.getByText("Cap rate").first()).toBeVisible();
   await expect(page.getByText("Cash-on-cash return")).toBeVisible();
-  await expect(page.getByText("Gross yield")).toBeVisible();
+  await expect(page.getByText("Gross yield").first()).toBeVisible();
   await expect(page.getByText("4.35%")).toBeVisible();
   await expect(page.getByText("Marginal investment")).toBeVisible();
 });
