@@ -120,5 +120,5 @@ services:
       redis:
         condition: service_healthy
       queue-api:
-        condition: service_started
+        condition: service_healthy
     restart: on-failure
