@@ -183,6 +183,158 @@ describe("handleLeadWebhook — event routing", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Rate limiting — concurrent agent limit (MAX_CONCURRENT = 5)
+// ---------------------------------------------------------------------------
+describe("rate limiting — concurrent limit", () => {
+  afterEach(() => {
+    delete process.env.WEBHOOK_SECRET;
+    vi.resetModules();
+  });
+
+  it("6th concurrent webhook is dropped (runAgent called exactly 5 times)", async () => {
+    // Use a never-resolving runAgent so activeAgents stays at 5
+    vi.resetModules();
+    process.env.WEBHOOK_SECRET = "";
+
+    let resolveAll!: () => void;
+    const hold = new Promise<void>((res) => {
+      resolveAll = res;
+    });
+    const mockRunAgent = vi.fn().mockReturnValue(hold);
+    vi.doMock("./agent.js", () => ({ runAgent: mockRunAgent }));
+
+    const { handleLeadWebhook } = await import("./webhook.js");
+    const res = makeRes();
+
+    // Fire 5 concurrent webhooks — each will call trackRun and then await hold
+    const inflight = Array.from({ length: 5 }, (_, i) =>
+      handleLeadWebhook(
+        makeReq({ id: `contact-${i}` }) as never,
+        makeRes() as never,
+      ),
+    );
+
+    // Give the microtask queue time to reach the await runAgent(...) line in each
+    await new Promise((r) => setTimeout(r, 0));
+
+    // 6th webhook — should be throttled (activeAgents === 5 >= MAX_CONCURRENT)
+    await handleLeadWebhook(
+      makeReq({ id: "contact-6th" }) as never,
+      res as never,
+    );
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(5);
+
+    // Clean up: unblock the in-flight agents
+    resolveAll();
+    await Promise.all(inflight);
+  });
+
+  it("activeAgents decrements after runAgent completes (slot is released)", async () => {
+    vi.resetModules();
+    process.env.WEBHOOK_SECRET = "";
+
+    let resolveFirst!: () => void;
+    const firstCall = new Promise<void>((res) => {
+      resolveFirst = res;
+    });
+    let callCount = 0;
+    const mockRunAgent = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return firstCall;
+      return Promise.resolve();
+    });
+    vi.doMock("./agent.js", () => ({ runAgent: mockRunAgent }));
+
+    const { handleLeadWebhook } = await import("./webhook.js");
+
+    // Fill all 5 slots
+    const inflight = Array.from({ length: 5 }, (_, i) =>
+      handleLeadWebhook(
+        makeReq({ id: `contact-${i}` }) as never,
+        makeRes() as never,
+      ),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockRunAgent).toHaveBeenCalledTimes(5);
+
+    // Release one slot by resolving the first agent
+    resolveFirst();
+    await inflight[0];
+
+    // Now a new webhook should be accepted (activeAgents dropped to 4)
+    await handleLeadWebhook(
+      makeReq({ id: "contact-after-release" }) as never,
+      makeRes() as never,
+    );
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(6);
+
+    // Clean up remaining
+    await Promise.all(inflight.slice(1));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rate limiting — per-contact cooldown (PER_CONTACT_COOLDOWN_MS = 1000)
+// ---------------------------------------------------------------------------
+describe("rate limiting — per-contact cooldown", () => {
+  afterEach(() => {
+    delete process.env.WEBHOOK_SECRET;
+    vi.resetModules();
+  });
+
+  it("second webhook for same contactId within 1000ms is dropped", async () => {
+    const { handleLeadWebhook, mockRunAgent } = await loadWebhook("");
+
+    const body = { id: "contact-cool" };
+
+    await handleLeadWebhook(makeReq(body) as never, makeRes() as never);
+    await handleLeadWebhook(makeReq(body) as never, makeRes() as never);
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("different contactIds are NOT throttled by each other", async () => {
+    const { handleLeadWebhook, mockRunAgent } = await loadWebhook("");
+
+    await handleLeadWebhook(
+      makeReq({ id: "contact-A" }) as never,
+      makeRes() as never,
+    );
+    await handleLeadWebhook(
+      makeReq({ id: "contact-B" }) as never,
+      makeRes() as never,
+    );
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(2);
+  });
+
+  it("same contactId is accepted again after cooldown expires", async () => {
+    vi.useFakeTimers();
+
+    vi.resetModules();
+    process.env.WEBHOOK_SECRET = "";
+    const mockRunAgent = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("./agent.js", () => ({ runAgent: mockRunAgent }));
+    const { handleLeadWebhook } = await import("./webhook.js");
+
+    const body = { id: "contact-timer" };
+
+    await handleLeadWebhook(makeReq(body) as never, makeRes() as never);
+
+    // Advance past the 1000ms cooldown
+    vi.advanceTimersByTime(1001);
+
+    await handleLeadWebhook(makeReq(body) as never, makeRes() as never);
+
+    expect(mockRunAgent).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // handleMessageWebhook — event routing
 // ---------------------------------------------------------------------------
 describe("handleMessageWebhook — event routing", () => {

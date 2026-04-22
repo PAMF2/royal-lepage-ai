@@ -9,7 +9,9 @@ interface Listing {
 }
 
 export default function ListingCard({ listing }: { listing: Listing }) {
-  const photo = listing.photos?.[0] ?? "/placeholder.jpg";
+  const photo =
+    listing.photos?.[0] ??
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect width='800' height='600' fill='%23d1d5db'/%3E%3C/svg%3E";
   const price = listing.listPrice?.toLocaleString("en-CA", {
     style: "currency",
     currency: "CAD",
