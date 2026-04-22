@@ -114,6 +114,33 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: npm test
 
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright deps (Chromium only)
+        working-directory: e2e
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Install app dependencies
+        run: |
+          npm install --prefix setup-wizard
+          npm install --prefix dashboard
+          npm install --prefix roi-calculator
+          npm install --prefix sales-deck
+
+      - name: Run E2E tests
+        run: npm run e2e
+
   lint:
     name: Env Check
     runs-on: ubuntu-latest

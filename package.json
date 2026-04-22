@@ -1,0 +1,7 @@
+{
+  "name": "royal-lepage-ai",
+  "private": true,
+  "scripts": {
+    "e2e": "cd e2e && playwright test"
+  }
+}
