@@ -48,7 +48,7 @@ test("property calculator section is visible", async ({ page }) => {
 });
 
 test("results render after mocked POST /api/calculate", async ({ page }) => {
-  await page.route("/api/calculate", (route) => {
+  await page.route("**/api/calculate", (route) => {
     route.fulfill({ json: MOCK_PROPERTY_RESULTS });
   });
 

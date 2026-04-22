@@ -89,7 +89,7 @@ test("pipeline stats section is visible", async ({ page }) => {
 test("pipeline stats display mocked values", async ({ page }) => {
   await page.goto(BASE);
   await expect(page.getByText("87,423")).toBeVisible({ timeout: 5000 });
-  await expect(page.getByText("1,835")).toBeVisible();
+  await expect(page.getByText("1,835").first()).toBeVisible();
   await expect(page.getByText("2.1%")).toBeVisible();
 });
 

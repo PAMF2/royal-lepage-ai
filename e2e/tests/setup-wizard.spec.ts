@@ -76,7 +76,8 @@ test("Step 2 appears after successful verification", async ({ page }) => {
   await expect(connectBtn).toBeEnabled();
   await connectBtn.click();
 
-  await expect(
-    page.getByText(/Setting up GoHighLevel|GoHighLevel Ready/),
-  ).toBeVisible({ timeout: 10000 });
+  // Step 2 is active when the Reconfigure button appears
+  await expect(page.getByText("← Reconfigure")).toBeVisible({
+    timeout: 10000,
+  });
 });
