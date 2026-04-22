@@ -131,15 +131,29 @@ jobs:
           npm install
           npx playwright install --with-deps chromium
 
-      - name: Install app dependencies
+      - name: Install and build apps
+        env:
+          GHL_API_KEY: dummy
+          GHL_LOCATION_ID: dummy
+          IDX_API_KEY: dummy
+          IDX_API_SECRET: dummy
+          ANTHROPIC_API_KEY: dummy
+          NEXT_PUBLIC_GHL_LOCATION_ID: dummy
         run: |
-          npm install --prefix setup-wizard
-          npm install --prefix dashboard
-          npm install --prefix roi-calculator
-          npm install --prefix sales-deck
+          npm install --prefix setup-wizard && npm run build --prefix setup-wizard
+          npm install --prefix dashboard && npm run build --prefix dashboard
+          npm install --prefix roi-calculator && npm run build --prefix roi-calculator
+          npm install --prefix sales-deck && npm run build --prefix sales-deck
 
       - name: Run E2E tests
         working-directory: e2e
+        env:
+          GHL_API_KEY: dummy
+          GHL_LOCATION_ID: dummy
+          IDX_API_KEY: dummy
+          IDX_API_SECRET: dummy
+          ANTHROPIC_API_KEY: dummy
+          NEXT_PUBLIC_GHL_LOCATION_ID: dummy
         run: npx playwright test
 
   lint:
