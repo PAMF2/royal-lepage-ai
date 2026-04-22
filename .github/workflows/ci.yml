@@ -139,7 +139,8 @@ jobs:
           npm install --prefix sales-deck
 
       - name: Run E2E tests
-        run: npm run e2e
+        working-directory: e2e
+        run: npx playwright test
 
   lint:
     name: Env Check
