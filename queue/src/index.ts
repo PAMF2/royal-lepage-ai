@@ -21,7 +21,7 @@ export const agentQueue = new Queue("agent-jobs", {
 
 const PORT = process.env.QUEUE_PORT ?? "3001";
 
-async function handleRequest(req: Request): Promise<Response> {
+export async function handleRequest(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
@@ -56,7 +56,7 @@ async function handleRequest(req: Request): Promise<Response> {
   return new Response("Not Found", { status: 404 });
 }
 
-function getPriority(body: unknown): number {
+export function getPriority(body: unknown): number {
   if (typeof body !== "object" || body === null) return 10;
   const b = body as Record<string, unknown>;
   // New inbound SMS from a lead gets highest priority

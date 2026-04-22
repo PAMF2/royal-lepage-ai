@@ -22,7 +22,7 @@ interface ConversationLog {
   ts: number;
 }
 
-async function handleRequest(req: Request): Promise<Response> {
+export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
   if (url.pathname === "/health") {
