@@ -6,7 +6,8 @@
   "scripts": {
     "setup": "tsx src/index.ts",
     "verify": "tsx src/verify.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run"
   },
   "dependencies": {
     "ioredis": "^5.3.2"
@@ -14,6 +15,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
   }
 }
