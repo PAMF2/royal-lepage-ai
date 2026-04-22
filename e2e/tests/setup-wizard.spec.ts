@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 const BASE = "http://localhost:3000";
 
 test.beforeEach(async ({ page }) => {
-  await page.route("/api/config", (route) => {
+  await page.route("**/api/config", (route) => {
     if (route.request().method() === "GET") {
       route.fulfill({ json: { exists: false } });
     } else {
@@ -34,7 +34,7 @@ test("submitting empty form disables the connect button", async ({ page }) => {
 });
 
 test("Step 2 appears after successful verification", async ({ page }) => {
-  await page.route("/api/verify", (route) => {
+  await page.route("**/api/verify", (route) => {
     route.fulfill({
       json: {
         ok: true,
@@ -52,7 +52,7 @@ test("Step 2 appears after successful verification", async ({ page }) => {
     });
   });
 
-  await page.route("/api/setup", (route) => {
+  await page.route("**/api/setup", (route) => {
     route.fulfill({
       json: {
         ok: true,
@@ -76,7 +76,7 @@ test("Step 2 appears after successful verification", async ({ page }) => {
   await expect(connectBtn).toBeEnabled();
   await connectBtn.click();
 
-  // Step 2 is active when the Reconfigure button appears
+  // Step 2 is active when the Reconfigure button appears in the header
   await expect(page.getByText("← Reconfigure")).toBeVisible({
     timeout: 10000,
   });
