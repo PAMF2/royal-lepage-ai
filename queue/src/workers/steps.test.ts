@@ -3,8 +3,22 @@
  *
  * These tests cover the step graph only — not BullMQ runtime behavior.
  * The worker spawns are skipped under NODE_ENV=test (vitest sets this).
+ *
+ * dispatchStep posts to the orchestrator's /internal/send, so we stub
+ * global.fetch with a 200 response for the worker-dispatch tests.
  */
-import { vi, describe, it, expect } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } })),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 vi.mock("ioredis", () => {
   class Redis {}
