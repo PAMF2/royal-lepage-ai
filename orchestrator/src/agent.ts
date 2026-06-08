@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ghlTools, handleGhlTool } from "./tools/ghl.js";
+import { crmTools, handleCrmTool } from "./tools/crm.js";
 import { idxTools, handleIdxTool } from "./tools/idx.js";
 import { elevenTools, handleElevenTool } from "./tools/eleven.js";
 import {
@@ -57,7 +57,7 @@ RULES:
 - All prices in CAD`;
 
 const ALL_TOOLS = [
-  ...ghlTools,
+  ...crmTools,
   ...idxTools,
   ...elevenTools,
   ...dealAnalysisTools,
@@ -140,8 +140,8 @@ export async function runAgent(input: AgentInput) {
 
         let result: unknown;
         try {
-          if (block.name.startsWith("ghl_"))
-            result = await handleGhlTool(
+          if (block.name.startsWith("crm_"))
+            result = await handleCrmTool(
               block.name,
               block.input as Record<string, unknown>,
             );
