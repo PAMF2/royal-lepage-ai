@@ -1,0 +1,18 @@
+{
+  "name": "royal-lepage-fub-setup",
+  "version": "1.0.0",
+  "description": "One-time FUB setup — seeds custom fields used by the orchestrator and lead-scoring modules.",
+  "type": "module",
+  "scripts": {
+    "setup": "tsx src/index.ts",
+    "verify": "tsx src/verify.ts",
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  }
+}
