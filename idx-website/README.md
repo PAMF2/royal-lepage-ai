@@ -9,7 +9,7 @@ The IDX website is a public-facing property search engine that:
 1. **Displays live MLS listings** — Pulls from IDX/CREA DDF or SimplyRETS API
 2. **Search & filter** — By city, price range, property type, beds/baths
 3. **Captures leads** — Forms at property detail pages and homepage
-4. **Integrates with GHL** — New lead form submissions create contacts automatically
+4. **Integrates with FUB** — New lead form submissions create people automatically
 5. **Drives qualification** — Lead captures include budget, timeline, interest indicators
 
 Result: Brokers get pre-qualified leads from their website, AI agent qualifies further.
@@ -19,8 +19,7 @@ Result: Brokers get pre-qualified leads from their website, AI agent qualifies f
 Required:
 - `IDX_API_KEY` — IDX provider API key
 - `IDX_API_SECRET` — IDX provider secret
-- `GHL_API_KEY` — GoHighLevel API key for lead creation
-- `GHL_LOCATION_ID` — Your GHL location
+- `FUB_API_KEY` — FollowUpBoss API key for lead creation
 
 Optional:
 - `IDX_PROVIDER` — "crea_ddf" (Canada) or "simplyrets" (US), default: crea_ddf
@@ -60,7 +59,7 @@ Serves on port 3000 by default.
 **Lead capture form:**
 - Name, email, phone
 - "Get matched with listings" newsletter signup
-- Submits to GHL as new contact with source="website"
+- Submits to FUB as new person with source="website"
 
 ### `/listings` — Listings Search
 
@@ -93,7 +92,7 @@ Single listing page:
 - "I'm interested in this property"
 - Form: name, email, phone, "I'm a buyer/seller/investor"
 - Pre-fills city, budget with listing price
-- Submits to GHL + enrolls in campaign
+- Submits to FUB + enqueues into a BullMQ campaign (via orchestrator `/enqueue-campaign`)
 
 **Agent info:**
 - Agent name, phone, photo
@@ -111,11 +110,11 @@ Single listing page:
 1. User fills form on homepage or listing detail
 2. Frontend POSTs to `/api/leads`
 3. Backend:
-   - Creates contact in GHL
+   - Creates person in FUB
    - Sets source = "website" or "listing-detail"
    - Adds tags: "website-lead", property interest tags
    - Stores listing interest in custom field (if applicable)
-4. GHL fires ContactCreated webhook → Orchestrator processes
+4. FUB fires `peopleCreated` webhook → Orchestrator processes via `/webhook/fub`
 
 ## API Routes
 
@@ -320,7 +319,11 @@ Configure in setup wizard or manually:
 
 ```typescript
 // In api/leads/route.ts
-await ghl('POST', `/contacts/${contactId}/campaigns/${GHL_CAMPAIGN_ID}`);
+await fetch(`${ORCHESTRATOR_URL}/enqueue-campaign`, {
+  method: "POST",
+  headers: { "x-internal-secret": process.env.INTERNAL_SECRET },
+  body: JSON.stringify({ personId, campaignId: "nurture-7day" }),
+});
 ```
 
 ## Customization
@@ -392,7 +395,7 @@ Environment variables in deployment dashboard.
 
 Set up alerts:
 - IDX API down → show cached listings
-- GHL lead creation failing → queue for retry
+- FUB lead creation failing → queue for retry
 - High 404 errors → check listing detail routes
 
 ## Common Issues
@@ -401,7 +404,7 @@ Set up alerts:
 
 **Listings not loading** — Check IDX provider API status. Verify credentials.
 
-**Lead form submitting but contact not in GHL** — Check GHL_API_KEY, GHL_LOCATION_ID. Verify webhook is firing.
+**Lead form submitting but person not in FUB** — Check FUB_API_KEY. Verify webhook is firing.
 
 **Slow search** — Add Redis caching layer or reduce listing count per page.
 

@@ -179,7 +179,7 @@ Keep under 160 characters for SMS. Warm, helpful, not pushy.
 1. Confirm email/phone is correct
 2. Note preferred contact method (call/text/email)
 3. Tag lead as `handed-off-to-[AgentName]`
-4. Log in GHL: Create task for agent with all LPMAMA data filled in
+4. Log in FUB: Create task for agent with all LPMAMA data filled in
 5. Set follow-up reminder: agent confirms contact within 6 hours
 
 ---
@@ -219,7 +219,7 @@ Keep under 160 characters for SMS. Warm, helpful, not pushy.
 - **Appointment → showing/CMA:** Actual meetup should occur within 7 days
 - **Showing/CMA → offer/feedback:** Closing the loop within 30 days is "hot" conversion
 
-### What Homie Tracks in GHL
+### What Homie Tracks in FUB
 - Handoff timestamp + agent name
 - Agent confirmation (did they make contact?)
 - Appointment confirmation (date/time booked?)

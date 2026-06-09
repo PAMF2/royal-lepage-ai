@@ -71,7 +71,7 @@ Orchestrator logs every agent run with full context.
   "contactId": "contact_abc123",
   "trigger": "new_lead",
   "turns": 3,
-  "toolsUsed": ["ghl_send_sms", "ghl_add_note", "ghl_add_tags"],
+  "toolsUsed": ["crm_send_sms", "crm_add_note", "crm_add_tags"],
   "outcome": "qualified",
   "durationMs": 2340,
   "error": null
@@ -129,7 +129,7 @@ Returns recent conversation logs in reverse chronological order.
     "contactId": "contact_xyz123",
     "trigger": "incoming_message",
     "turns": 2,
-    "toolsUsed": ["ghl_get_conversation", "ghl_send_sms"],
+    "toolsUsed": ["crm_get_conversation", "crm_send_sms"],
     "outcome": "contacted",
     "durationMs": 890,
     "error": null,
@@ -139,7 +139,7 @@ Returns recent conversation logs in reverse chronological order.
     "contactId": "contact_abc456",
     "trigger": "new_lead",
     "turns": 4,
-    "toolsUsed": ["ghl_send_sms", "ghl_add_note"],
+    "toolsUsed": ["crm_send_sms", "crm_add_note"],
     "outcome": "qualified",
     "durationMs": 2100,
     "error": null,
@@ -357,7 +357,7 @@ redis-cli ping
 **Metrics stuck at same values** — Either no logs being posted, or agent is hitting errors (check /conversations for error field).
 
 **High error rate (> 5%)** — Check orchestrator logs and failing contacts. Common causes:
-- GHL API key expired
+- FUB API key expired
 - IDX service down
 - Agent timeout
 

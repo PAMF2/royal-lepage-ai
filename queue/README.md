@@ -6,7 +6,7 @@ BullMQ job queue layer that scales the orchestrator from 1k to 100k+ leads per d
 
 The queue decouples webhook ingestion from agent processing:
 
-1. **Receives webhooks** from GHL (via queue API, not directly)
+1. **Receives webhooks** from FUB (via queue API, not directly)
 2. **Enqueues jobs** in Redis with priority (inbound SMS > new leads > other events)
 3. **Manages retries** — 3 attempts with exponential backoff
 4. **Scales processing** — Multiple workers can pull and process jobs in parallel
@@ -55,7 +55,7 @@ For horizontal scaling, run multiple worker processes on different machines (all
 ## How It Fits In
 
 ```
-GHL Webhook → Queue API (/enqueue) → Redis
+FUB Webhook → Queue API (/enqueue) → Redis
                                         ↓
                                    BullMQ Job
                                         ↓
@@ -63,7 +63,7 @@ GHL Webhook → Queue API (/enqueue) → Redis
                                         ↓
                                    Orchestrator
                                         ↓
-                                   GHL Update + Monitoring log
+                                   FUB Update + Monitoring log
 ```
 
 ## API Endpoints
@@ -214,22 +214,22 @@ If `waiting` queue grows faster than workers can process:
 
 The orchestrator doesn't directly process queue jobs. Instead:
 
-1. Queue API receives webhook from GHL
+1. Queue API receives webhook from FUB
 2. Queues job in BullMQ
 3. Worker pulls job, makes HTTP request to orchestrator endpoint
 4. Orchestrator processes and returns result
 5. Worker logs success/failure
 
-To integrate, update GHL webhook configuration:
+To integrate, update FUB webhook configuration:
 
 **Old (direct):**
 ```
-GHL → POST http://localhost:3000/webhook/lead
+FUB → POST http://localhost:3000/webhook/lead
 ```
 
 **New (via queue):**
 ```
-GHL → POST http://localhost:3001/enqueue
+FUB → POST http://localhost:3001/enqueue
 ```
 
 Update header: `x-queue-secret: ${QUEUE_SECRET}`
@@ -262,7 +262,7 @@ Update header: `x-queue-secret: ${QUEUE_SECRET}`
 **High queue depth:**
 - More workers needed
 - Orchestrator might be overloaded
-- IDX/GHL APIs might be slow (hitting rate limits)
+- IDX/FUB APIs might be slow (hitting rate limits)
 
 ## Security
 
@@ -276,7 +276,7 @@ Update header: `x-queue-secret: ${QUEUE_SECRET}`
 - [ ] Redis is running and accessible from all machines
 - [ ] Each worker has `REDIS_URL` set to same Redis instance
 - [ ] `QUEUE_SECRET` is strong (32+ characters, random)
-- [ ] GHL webhooks point to queue API (`/enqueue`)
+- [ ] FUB webhooks point to queue API (`/enqueue`)
 - [ ] Monitor queue depth regularly (should stay < 1000)
 - [ ] Alert on job failures (too many retries = systematic issue)
 - [ ] Add more workers if `waiting` queue grows

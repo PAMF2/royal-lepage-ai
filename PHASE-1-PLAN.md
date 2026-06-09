@@ -29,7 +29,7 @@ Zero TODO/FIXME/throws de "not implemented" no código fonte. Todo o core está 
 
 ### Orchestrator (`orchestrator/src/agent.ts`)
 - System prompt LPMAMA (Location, Price, Motivation, Agent, Mortgage, Appointment) completo
-- 4 grupos de tools dispatchados por prefixo: `ghl_*`, `idx_*`, `eleven_*`, `deal_*`
+- 4 grupos de tools dispatchados por prefixo: `crm_*` (FUB), `idx_*`, `eleven_*`, `deal_*`
 - Histórico de conversa em memória com cap de 20 mensagens
 - Loop máximo de 10 turnos por trigger
 - Bilingue (EN/FR auto-detect)
@@ -39,7 +39,7 @@ Zero TODO/FIXME/throws de "not implemented" no código fonte. Todo o core está 
 - CSV streaming line-by-line (suporta 100k+ rows sem estourar memória)
 - Auto-detect de coluna (case-insensitive)
 - Dry-run mode
-- Batch parallel (default 10) com rate-limit awareness pro GHL
+- Batch parallel (default 10) com rate-limit awareness pro FUB (250 req/10s sliding window)
 - Custom fields auto-criados (city, budget, timeline)
 
 ### Lead Scoring (`lead-scoring/`)
@@ -57,7 +57,7 @@ Zero TODO/FIXME/throws de "not implemented" no código fonte. Todo o core está 
 - Filtros: exclui DNC, no-contact, handed-off, closed
 - IDX query por listing nova + price drop por contato
 - Mensagem gerada via Claude (16 char ou template fallback)
-- Rate limit 1.2s entre contatos (5 req/s GHL)
+- Rate limit 1.2s entre contatos (folga vs FUB 250 req/10s)
 - Max 200 leads/run (configurável)
 
 ---
@@ -91,7 +91,7 @@ Zero TODO/FIXME/throws de "not implemented" no código fonte. Todo o core está 
 ### 4. Sem CSV real de leads — `BLOCKER pra valor real`
 - Para validar Phase 1 de verdade, precisa exportar os 200k leads do FUB do Rob Golfy
 - FUB API tem rate limit de 10 req/10s no /notes endpoint → export overnight ~12-24h (per FUB scoping doc)
-- **Gap: não existe script FUB→CSV no repo.** Data-migration só importa CSV→GHL. Precisa script de export antes.
+- ~~**Gap: não existe script FUB→CSV no repo.**~~ ✅ RESOLVIDO 08/jun: `data-migration/src/fub-export.ts` shipped (commit 68a9c8f, 70/70 tests).
 
 ### 5. ~~Divergência scoping vs código~~ — `RESOLVIDO 08/jun`
 - Decisão Pedro: **Supabase** (Postgres 15, free tier).
@@ -114,7 +114,7 @@ P1 — Validar build local ✅ DONE (08/jun, 112/112 tests pass)
   ↓
 P2 — Decisão Pedro: Postgres in ou out? ✅ Supabase
   ↓
-P2.5 — Branch replace-ghl: substituir GHL por FUB+Twilio+SendGrid+BullMQ (EM ANDAMENTO)
+P2.5 — Branch replace-ghl: substituir GHL por FUB+Twilio+SendGrid+BullMQ ✅ SHIPPED (PR #1)
   ↓
   Coder em 10-12 commits: crm.ts scaffold → rewire → Twilio → SendGrid → webhook → 4 drip workers → fub-setup → cutover
   ↓
@@ -149,7 +149,7 @@ P10 — Reactivation cron + drip campaigns ativas em produção
 - P9: 1 dia
 - P10: imediato após P9
 
-**Caminho mais rápido pra valor demonstrável:** P1 → P3 (parcial: só GHL + Anthropic) → P4 → migrar 1.000 leads sample → P8 score → mostrar dashboard pro Holly.
+**Caminho mais rápido pra valor demonstrável:** P1 → P3 (parcial: só FUB + Twilio + Anthropic) → P4 → migrar 1.000 leads sample → P8 score → mostrar dashboard pro Holly.
 
 ---
 
@@ -162,7 +162,7 @@ P10 — Reactivation cron + drip campaigns ativas em produção
 - [x] Escrever `fub-export.ts` (Gap #4)
 - [x] Decisão Postgres: Supabase
 - [x] `MIGRATION-GHL-TO-FUB.md` (arquitetura completa do substituto)
-- [ ] Branch `replace-ghl`: rewire GHL→FUB+Twilio+SendGrid+BullMQ (coder, em andamento)
+- [x] Branch `replace-ghl`: rewire GHL→FUB+Twilio+SendGrid+BullMQ ✅ shipped 08/jun (PR #1, tip 68a9c8f, 171+ tests passing across Phase-1 modules + queue + fub-setup)
 - [ ] Atualizar `.env.example` (coder fará junto com cutover)
 
 ## O que precisa de Pedro / Rob Golfy

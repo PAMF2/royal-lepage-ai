@@ -205,7 +205,7 @@ Homie qualifies lead → passes LPMAMA to agent → agent uses Homage to prepare
 
 ### Threat: Agent Says "I'll Use My Own AI/CRM"
 **Reality:** Individual agents using ChatGPT don't have institutional lead intake; leads still go through manual process.
-**Response:** Homie is brokerage-level infrastructure; all leads flow through GHL automatically, freeing up agent time for closing.
+**Response:** Homie is brokerage-level infrastructure; all leads flow through FUB automatically, freeing up agent time for closing.
 
 ### Threat: International Buyer Prefers U.S. Brokerage Experience
 **Reality:** Canada has different rules (CMHC, land transfer tax, provinces).

@@ -4,7 +4,7 @@
 
 | Phase | Scope | Price |
 |-------|-------|-------|
-| Phase 1 — Core | GHL setup, lead import, SMS AI, basic IDX, booking | $3,500 |
+| Phase 1 — Core | FUB setup, lead import, SMS AI, basic IDX, booking | $3,500 |
 | Phase 2 — Enhancement | Advanced IDX intelligence, reactivation, reporting | $2,500 |
 | Phase 3 — Advanced AI | Voice AI, Homie, custom workflows | $3,000 |
 | **Full Project** | All 3 phases | **$8,000** |
@@ -13,7 +13,7 @@
 
 | Tier | Includes | Price |
 |------|---------|-------|
-| Core | GHL management, AI monitoring, updates | $500/mo |
+| Core | FUB management, AI monitoring, updates | $500/mo |
 | Growth | + Reactivation campaigns, reporting | $800/mo |
 | Full Stack | + Homie, voice AI management, new workflows | $1,200/mo |
 
@@ -21,9 +21,12 @@
 
 | Service | Cost |
 |---------|------|
-| GoHighLevel | ~$297–$497/mo |
+| FollowUpBoss | ~$69–$1,000+/mo (Grow tier and up, scales with agent seats) |
+| Twilio SMS | ~$0.0075/message + $1/mo per phone number |
+| SendGrid Email | Free up to 100/day; $15/mo for 50k/mo (Essentials tier) |
+| Supabase | Free up to ~50k rows; $25/mo Pro tier above that |
+| Redis (Upstash or Railway) | ~$10–$25/mo for production workloads |
 | ElevenLabs (voice AI) | Usage-based, ~$0.01–$0.05/min |
-| SMS (Twilio via GHL) | ~$0.0075/message |
 | IDX Feed | $50–$200/mo (board-dependent) |
 
 ## ROI Comparison

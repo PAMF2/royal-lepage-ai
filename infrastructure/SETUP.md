@@ -3,7 +3,11 @@
 ## Full System Checklist
 
 ### Prerequisites
-- GoHighLevel account (Agency plan, $297–$497/mo)
+- FollowUpBoss account (Grow tier or above, ~$69–$1,000+/mo depending on agent seats)
+- Twilio account with SMS-capable number ($1/mo + per-message cost)
+- SendGrid account with verified sender domain (free tier covers <100/day)
+- Supabase project (free tier covers ~50k rows)
+- Redis (Upstash or Railway Redis — ~$10–25/mo for production)
 - ElevenLabs account (optional, for voice)
 - IDX agreement signed with client's real estate board
 - Client lead database exported (CSV)
@@ -14,29 +18,37 @@
 Copy `infrastructure/.env.example` to `.env` in each service folder:
 
 ```bash
-# GoHighLevel
-GHL_API_KEY=
-GHL_LOCATION_ID=
-GHL_PIPELINE_ID=               # set after running ghl-setup
-GHL_CALENDAR_ID=               # set after GHL calendar created
+# FollowUpBoss
+FUB_API_KEY=
+FUB_WEBHOOK_SECRET=             # generate via crypto.randomBytes(32).toString('hex')
 
-# Pipeline stage IDs (set after running ghl-setup)
-GHL_STAGE_NEW_LEAD=
-GHL_STAGE_ATTEMPTED=
-GHL_STAGE_CONTACTED=
-GHL_STAGE_QUALIFIED=
-GHL_STAGE_APPOINTMENT_SET=
-GHL_STAGE_HANDED_OFF=
-GHL_STAGE_NURTURE=
+# Twilio (outbound SMS)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=             # e.g. +14165550100 (Canada-capable)
 
-# Campaign IDs (set after running ghl-setup)
-GHL_CAMPAIGN_DRIP_7DAY=
-GHL_CAMPAIGN_REACTIVATION=
+# SendGrid (outbound email)
+SENDGRID_API_KEY=
+SENDGRID_FROM_EMAIL=            # must be verified in SendGrid
+
+# Supabase (long-term lead state, campaign enrollments)
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Redis (BullMQ campaign queue)
+REDIS_URL=
+
+# Orchestrator internal auth
+INTERNAL_SECRET=                # generate via crypto.randomBytes(32).toString('hex')
+
+# Queue API
+QUEUE_API_URL=                  # e.g. http://queue:3001
+QUEUE_SECRET=                   # generate via crypto.randomBytes(32).toString('hex')
 
 # ElevenLabs (optional — voice AI)
 ELEVENLABS_API_KEY=
 ELEVENLABS_AGENT_ID=
-ELEVENLABS_FROM_PHONE=         # Twilio number connected to ElevenLabs
+ELEVENLABS_FROM_PHONE=          # Twilio number connected to ElevenLabs
 
 # IDX / MLS
 IDX_PROVIDER=simplyrets         # or crea_ddf for Canadian boards
@@ -62,18 +74,21 @@ ANTHROPIC_MODEL=claude-opus-4-7
 cp .env.example .env   # fill in all values before running anything
 ```
 
-### Step 1 — GHL Setup (run once)
+### Step 1 — FUB Setup (run once)
 ```bash
 make setup
-# Creates: custom fields (homie_score + LPMAMA), pipeline, webhooks, campaigns, custom values
-# Idempotent — safe to re-run if interrupted
+# Seeds: homie_score + 5 LPMAMA custom fields in FUB
+# Idempotent — safe to re-run
 ```
-Copy the pipeline and campaign IDs printed to console into your `.env`.
+
+**Manual FUB setup (one-time, in the FUB UI):**
+- Settings → Pipelines: create stages New Lead → Attempted → Contacted → Qualified → Appointment Set → Handed Off → Nurture → Closed
+- Settings → Webhooks: add `${ORCHESTRATOR_URL}/webhook/fub` with secret = `FUB_WEBHOOK_SECRET`, subscribe to `peopleCreated`, `peopleUpdated`, `conversationsCreated`
 
 ### Step 1b — Verify all connections
 ```bash
 make verify
-# Checks: GHL API, Anthropic, IDX, Redis, ElevenLabs (optional), webhooks, custom fields
+# Checks: FUB, Twilio, SendGrid, Supabase, Redis, Anthropic, IDX, ElevenLabs (optional), custom fields
 # All green = ready to deploy
 ```
 
@@ -89,15 +104,25 @@ npm run migrate -- --file /path/to/leads.csv
 
 Expected CSV columns: `firstName, lastName, email, phone, source, city, budget, timeline, tags`
 
-### Step 3 — Deploy Orchestrator
+To go the other way (FUB → CSV), use the exporter:
+```bash
+FUB_API_KEY=xxxxx npx tsx src/fub-export.ts --out leads.csv
+```
+
+### Step 3 — Deploy Orchestrator + Queue
 ```bash
 cd orchestrator
 npm run build
 # Deploy dist/ to Railway / Render / Fly.io
 # Set all env vars in your deployment platform
 # Note the public URL → set as ORCHESTRATOR_URL in .env
+
+cd ../queue
+npm run build
+# Deploy queue API and queue-worker as separate processes (same Redis)
 ```
-The orchestrator runs the GHL webhook setup automatically on deploy.
+The orchestrator exposes `/webhook/fub` (FUB ingress), `/internal/send` (queue
+worker dispatch), and `/enqueue-campaign` (drip enrollment).
 
 ### Step 4 — IDX Website
 ```bash
@@ -107,7 +132,7 @@ npm run build
 # Deploy to Vercel (recommended):
 # vercel --prod
 ```
-Set `GHL_API_KEY`, `GHL_LOCATION_ID`, `IDX_API_KEY`, `IDX_API_SECRET` as env vars in Vercel.
+Set `FUB_API_KEY`, `IDX_API_KEY`, `IDX_API_SECRET` as env vars in Vercel.
 
 ### Step 5 — Dashboard
 ```bash
@@ -141,14 +166,16 @@ Client must sign IDX agreement and authorize platform as a back-end (BA) data pr
 ## Architecture Summary
 
 ```
-[GHL Webhook] → orchestrator/ → Claude AI agent
-                                    ├── ghl tools    (contacts, SMS, pipeline)
-                                    ├── idx tools    (listings, comparables)
-                                    └── eleven tools (outbound calls)
+[FUB webhook /webhook/fub] → orchestrator/ → Claude AI agent
+                                                ├── crm  tools (FUB people, Twilio SMS, SendGrid email, notes)
+                                                ├── idx  tools (listings, comparables)
+                                                └── eleven tools (outbound calls)
 
-[IDX Website] → lead capture form → GHL (new contact) → orchestrator webhook
+[IDX Website] → lead capture form → FUB (new person) → peopleCreated webhook → orchestrator
 
-[Dashboard]   → GHL API → stats, funnel, recent leads, activity feed
+[BullMQ queue/] → drip workers → POST /internal/send → crm_send_sms or crm_send_email
 
-[Lead Scoring] → GHL API → score all contacts → update tags + custom field
+[Dashboard]   → FUB API (read) + Supabase → stats, funnel, recent leads, activity feed
+
+[Lead Scoring] → FUB API → score all people → update tags + homie_score custom field
 ```

@@ -1,25 +1,30 @@
 # Data Migration
 
-Bulk lead importer — imports up to 100,000 contacts from CSV into GoHighLevel in parallel batches.
+Bulk lead importer — imports up to 100,000 contacts from CSV into FollowUpBoss
+in parallel batches. Also ships a FUB → CSV exporter (`fub-export.ts`) for the
+reverse direction.
 
 ## What It Does
 
-The data migration tool is used during initial setup to populate GoHighLevel with your lead database:
+The data migration tool is used during initial setup to populate FollowUpBoss with your lead database:
 
 1. **Reads CSV file** — Supports up to 100k rows
 2. **Parses headers** — Auto-detects column names (case-insensitive)
 3. **Validates data** — Checks for required fields (email and/or phone)
-4. **Creates contacts** — Posts each lead to GHL API with batch parallelization
+4. **Creates people** — Posts each lead to FUB API with batch parallelization
 5. **Tracks progress** — Real-time counter: "Imported: 500/10000"
 6. **Handles errors** — Retries failed requests, logs skipped rows
+
+The companion `fub-export.ts` exports the reverse — pulls people from FUB and
+writes a CSV in the same shape the importer reads (useful for backups,
+audits, or cross-environment migrations).
 
 Performance: ~1000 leads per minute with default batch size of 10.
 
 ## Environment Variables
 
 Required:
-- `GHL_API_KEY` — GoHighLevel API key
-- `GHL_LOCATION_ID` — Your GHL location ID
+- `FUB_API_KEY` — FollowUpBoss API key
 
 Optional:
 - None; all settings via command-line flags
@@ -54,7 +59,7 @@ DRY RUN — first 3 rows:
   2. {"firstName":"Jane","lastName":"Smith","email":"jane@example.com","phone":"+12125555678","city":"Los Angeles"}
   3. {"firstName":"Bob","lastName":"Johnson","email":"bob@example.com","phone":"+13105552222","city":"Chicago"}
 
-Would import 10000 contacts into GHL location abc123xyz.
+Would import 10000 contacts into FollowUpBoss.
 ```
 
 ### Custom Batch Size
@@ -63,7 +68,7 @@ Would import 10000 contacts into GHL location abc123xyz.
 npm run migrate -- --file leads.csv --batch-size 25
 ```
 
-Default: 10 (increase for faster imports, watch GHL rate limits)
+Default: 10 (increase for faster imports, watch FUB rate limits — 250 req/10s sliding window)
 
 ### Custom Lead Source
 
@@ -114,30 +119,29 @@ Handles standard CSV quoting:
    - Extract header from first row (case-insensitive, trim spaces)
    - Map column names to lead fields
 
-2. **Build Contact**
+2. **Build Person**
    ```javascript
-   const contact = {
-     locationId: GHL_LOCATION_ID,
+   const person = {
      firstName: row.firstName,
      lastName: row.lastName,
-     email: row.email,
-     phone: row.phone,
+     emails: [{ value: row.email }],
+     phones: [{ value: row.phone }],
      source: row.source || "--source flag",
      tags: [...splitTags(row.tags), "csv-import"],
-     customField: [
-       { id: "city", value: row.city },
-       { id: "budget", value: row.budget },
-       { id: "timeline", value: row.timeline }
-     ]
-   }
+     customFields: {
+       lpmama_city: row.city,
+       lpmama_budget: row.budget,
+       lpmama_timeline: row.timeline,
+     },
+   };
    ```
    - "csv-import" tag is always added for tracking
 
-3. **POST to GHL**
+3. **POST to FUB**
    ```
-   POST https://services.leadconnectorhq.com/contacts/
-   Headers: Authorization: Bearer GHL_API_KEY
-   Body: contact object (JSON)
+   POST https://api.followupboss.com/v1/people
+   Headers: Authorization: Basic base64(FUB_API_KEY + ":")
+   Body: person object (JSON)
    ```
 
 4. **Handle Results**
@@ -168,15 +172,15 @@ npm run migrate -- --file leads.csv --batch-size 5
 ## Error Handling
 
 If a batch partially fails (e.g., 2/10 succeed):
-- Successful contacts are created in GHL
+- Successful contacts are created in FUB
 - Failed contacts are counted but not retried (logged to console)
 - Next batch starts immediately
 
 Example failure output:
 ```
   Batch 5: 8/10 successful
-    Error: contact 3 — GHL 400: Invalid email format
-    Error: contact 7 — GHL 409: Duplicate email
+    Error: contact 3 — FUB 400: Invalid email format
+    Error: contact 7 — FUB 409: Duplicate email
 ```
 
 ## Output
@@ -195,24 +199,21 @@ Found 10000 leads.
 Done. Imported 9820 contacts. Failed: 180. Skipped: 0.
 
 Failed contacts (reasons):
-  - GHL 400: Invalid email — 60 contacts
-  - GHL 409: Duplicate email — 100 contacts
-  - GHL 401: Unauthorized — 20 contacts
+  - FUB 400: Invalid email — 60 contacts
+  - FUB 409: Duplicate email — 100 contacts
+  - FUB 401: Unauthorized — 20 contacts
 ```
 
 ## Handling Duplicates
 
-GHL prevents duplicate emails by default. If importing a CSV with duplicates:
+FUB dedupes on (email, phone). If importing a CSV with duplicates:
 
 1. Dedup before import:
    ```bash
    sort -t, -k3 leads.csv | uniq -f2 > leads_dedup.csv
    ```
 
-2. Or allow GHL to skip (default behavior):
-   - GHL returns 409 Conflict
-   - Lead is skipped, logged as failed
-   - Next lead proceeds normally
+2. Or let FUB return 409 Conflict — the importer logs and skips, next lead proceeds.
 
 ## Custom Fields
 
@@ -223,9 +224,9 @@ The importer creates custom fields on-the-fly if they don't exist:
 
 These fields are referenced by the agent and scoring engine.
 
-If these fields already exist in GHL:
+If these fields already exist in FUB (seeded by `fub-setup/`):
 - Importer still sends them (no error)
-- GHL updates existing fields
+- FUB updates existing fields
 - No data loss
 
 ## Tags
@@ -277,26 +278,26 @@ To test locally:
    
 3. Check output (no API calls made)
 
-4. Run for real (with test GHL credentials):
+4. Run for real (with test FUB credentials):
    ```bash
-   GHL_API_KEY=xxx GHL_LOCATION_ID=yyy npm run migrate -- --file test.csv
+   FUB_API_KEY=xxx npm run migrate -- --file test.csv
    ```
 
-5. Check GHL UI — should see 2 new contacts
+5. Check FUB UI — should see 2 new people
 
 ## Troubleshooting
 
-**"Required: GHL_API_KEY, GHL_LOCATION_ID"** — Set environment variables or use the setup wizard.
+**"Required: FUB_API_KEY"** — Set environment variable or use the setup wizard.
 
 **"File not found"** — Check path. Example: `npm run migrate -- --file ../leads.csv`
 
-**Many "Duplicate email" errors** — CSV has duplicates or existing GHL contacts. Dedup before import.
+**Many "Duplicate email" errors** — CSV has duplicates or existing FUB people. Dedup before import.
 
-**GHL 401 Unauthorized** — API key expired or invalid. Get a fresh key from GHL Settings.
+**FUB 401 Unauthorized** — API key expired or invalid. Get a fresh key from FUB Settings → API.
 
 **"Expected CSV columns"** — Help message shows required fields. Ensure CSV has at least email or phone.
 
-**Import very slow** — Check GHL API status (might be rate-limited). Reduce batch size and retry.
+**Import very slow** — Check FUB API status (might be rate-limited at 250 req/10s). Reduce batch size and retry.
 
 ## Large File Handling
 

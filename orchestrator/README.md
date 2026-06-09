@@ -6,12 +6,13 @@ Claude AI agent that qualifies real estate leads and routes them to next steps i
 
 The orchestrator is the core intelligence layer. It:
 
-1. **Receives webhooks** from GoHighLevel when new leads arrive or messages come in
-2. **Runs Claude as an AI agent** with access to 10+ tools (GHL, IDX, ElevenLabs)
+1. **Receives webhooks** from FollowUpBoss (`peopleCreated`, `peopleUpdated`, `conversationsCreated`) on the `/webhook/fub` endpoint
+2. **Runs Claude as an AI agent** with access to 10+ tools (FUB CRM, IDX, ElevenLabs)
 3. **Qualifies leads** using the LPMAMA framework (Location, Price, Motivation, Agent, Mortgage, Appointment)
 4. **Advances the pipeline** automatically (New Lead → Attempted Contact → Contacted → Qualified → etc.)
-5. **Sends SMS/email** via GHL with warm, personalized outreach
-6. **Logs every action** as contact notes for auditing
+5. **Sends SMS via Twilio and email via SendGrid** with warm, personalized outreach
+6. **Logs every action** as FUB notes (`crm_add_note`) for auditing
+7. **Exposes `/internal/send`** so BullMQ campaign-drip workers can dispatch templated messages through the same CRM tools
 
 The agent responds in both English and French (auto-detected), with SMS messages kept under 160 characters per Canadian/SMS best practices.
 
@@ -19,14 +20,17 @@ The agent responds in both English and French (auto-detected), with SMS messages
 
 Required:
 - `ANTHROPIC_API_KEY` — Claude API key from console.anthropic.com
-- `GHL_API_KEY` — GoHighLevel API key from Settings → Integrations
-- `GHL_LOCATION_ID` — Your GHL Location ID
-- `WEBHOOK_SECRET` — HMAC-SHA256 secret for verifying GHL webhooks (generate a random 32-char string)
+- `FUB_API_KEY` — FollowUpBoss API key from Settings → API
+- `FUB_WEBHOOK_SECRET` — HMAC-SHA256 secret for verifying FUB webhooks (generate a random 32-char string)
+- `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` — for outbound SMS
+- `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL` — for outbound email
+- `INTERNAL_SECRET` — auth for the `/internal/send` endpoint (generate a random 32-char string)
 
 Optional:
 - `PORT` — Server port (default: 3000)
 - `ANTHROPIC_MODEL` — Model to use (default: claude-opus-4-7)
 - `AGENT_LANGUAGE` — "en", "fr", or "bilingual" (default: bilingual)
+- `CAMPAIGN_TEMPLATES_DIR` — Override path to `campaign-templates/` for the loader
 - `IDX_API_KEY`, `IDX_API_SECRET` — For property lookups
 - `ELEVENLABS_API_KEY` — For voice AI outreach
 
@@ -38,13 +42,12 @@ npm install
 npm run dev
 ```
 
-The server listens on port 3000 by default. Configure webhooks in GoHighLevel:
+The server listens on port 3000 by default. Configure webhooks in FollowUpBoss:
 
-1. Settings → Integrations → Webhooks
-2. Add two webhook URLs:
-   - Contact Created: `http://localhost:3000/webhook/lead`
-   - Inbound Message: `http://localhost:3000/webhook/message`
-3. Set X-GHL-Signature header to your WEBHOOK_SECRET
+1. Settings → Webhooks → Add Webhook
+2. Add one webhook URL: `http://localhost:3000/webhook/fub`
+3. Subscribe to events: `peopleCreated`, `peopleUpdated`, `conversationsCreated`
+4. Set the signing secret to your `FUB_WEBHOOK_SECRET` — FUB sends it back as the `x-fub-signature` header
 
 ## Building & Deployment
 
@@ -58,33 +61,38 @@ For production, deploy with environment variables set and use a service like Rai
 ## How It Fits In
 
 ```
-GHL Lead → Webhook → Queue → Orchestrator → GHL Update
-                     (BullMQ)  (Claude Agent)  (SMS/Email)
-                                   ↓
-                             Monitoring Logs
+FUB lead → /webhook/fub → Claude agent → Twilio SMS / SendGrid email / FUB note
+                              ↓
+                       Monitoring log
 ```
 
-The orchestrator is meant to scale with the queue layer for 100k+ leads:
+For drip campaigns, the dataflow is reversed — the queue calls back into the
+orchestrator's `/internal/send` route:
 
-- **Single agent**: Use orchestrator directly (< 1k leads)
-- **At scale**: Queue enqueues webhooks → Workers pull jobs → Orchestrator processes
+```
+BullMQ campaign-drip worker (queue/) → POST /internal/send
+                                          → loadTemplate(templateId, kind)
+                                          → crm_send_sms or crm_send_email
+                                          → Twilio / SendGrid
+```
 
-See `../queue/` for BullMQ integration.
+See `../queue/` for the BullMQ workers and `src/templates.ts` for the
+campaign-template loader.
 
 ## Tools Available to the Agent
 
-### GHL Tools
-- `ghl_search_contacts` — Find contacts by name/email
-- `ghl_get_contact` — Fetch full contact record
-- `ghl_send_sms` — Send SMS (max 160 chars)
-- `ghl_send_email` — Send email
-- `ghl_get_conversation` — Read chat history
-- `ghl_add_note` — Log actions as notes
-- `ghl_update_pipeline_stage` — Move opportunity forward
-- `ghl_create_opportunity` — Start a new deal
-- `ghl_book_appointment` — Calendar integration
-- `ghl_add_tags` — Label contacts (hot-lead, pre-approved, etc.)
-- `ghl_enroll_campaign` — Add to drip sequences
+### CRM Tools (FUB + Twilio + SendGrid)
+- `crm_search_contacts` — Find FUB people by name/email/phone
+- `crm_get_contact` — Fetch full FUB person record
+- `crm_send_sms` — Send SMS via Twilio (max 160 chars); also logs as FUB note
+- `crm_send_email` — Send email via SendGrid; also logs as FUB note
+- `crm_get_conversation` — Read message history from FUB
+- `crm_add_note` — Log actions as FUB notes
+- `crm_update_stage` — Move person to next FUB pipeline stage
+- `crm_create_deal` — Start a new FUB deal
+- `crm_book_appointment` — Create FUB calendar appointment
+- `crm_add_tags` — Label FUB people (hot-lead, pre-approved, etc.)
+- `crm_enroll_campaign` — Enqueue into BullMQ drip campaign via `POST /enqueue-campaign`
 
 ### IDX Tools
 - Property search, market insights (see `../idx-mcp/`)
@@ -112,9 +120,11 @@ For production monitoring, see `../monitoring/`.
 
 ## Code Structure
 
-- `src/index.ts` — Express server, webhook routes
-- `src/webhook.ts` — HMAC signature verification, async job dispatch
+- `src/index.ts` — Express server, webhook + internal routes
+- `src/webhook.ts` — `/webhook/fub` HMAC verification + event routing
+- `src/internal-send.ts` — `/internal/send` route used by queue workers
+- `src/templates.ts` — `loadTemplate(id, kind, vars)` for campaign drip content
 - `src/agent.ts` — Claude agent loop, tool execution, LPMAMA logic
-- `src/tools/ghl.ts` — GHL API wrapper + tool definitions
+- `src/tools/crm.ts` — FUB + Twilio + SendGrid wrapper, `crm_*` tools
 - `src/tools/idx.ts` — IDX/MLS property lookups
 - `src/tools/eleven.ts` — ElevenLabs voice integration
