@@ -6,17 +6,18 @@ Next.js 3-step onboarding UI for Royal LePage AI platform. Guides brokers from z
 
 The setup wizard is the first experience a Royal LePage broker has when deploying the platform. It:
 
-1. **Step 1: Connect** — Enter 3 API keys (GHL, Anthropic, optionally IDX & ElevenLabs)
+1. **Step 1: Connect** — Enter API keys (FUB, Twilio, SendGrid, Supabase, Anthropic; optionally IDX & ElevenLabs)
    - Validates credentials in real-time
-   - Auto-generates webhook secret and orchestrator URL
+   - Auto-generates webhook secret (`FUB_WEBHOOK_SECRET`) and `INTERNAL_SECRET`
    - Downloads `.env` file for easy deployment
-   
-2. **Step 2: Activate** — Automatically configures GoHighLevel
-   - Creates custom fields (homie_score, LPMAMA data, IDX tracking)
-   - Sets up sales pipeline (New → Attempted → Contacted → Qualified → Booked → Closed)
-   - Registers webhooks so GHL talks to the orchestrator
-   - Creates 4 drip campaigns (7-day, reactivation, reminders, nurture)
-   
+
+2. **Step 2: Activate** — Configures FollowUpBoss
+   - Seeds custom fields via `fub-setup/` (homie_score + 5 LPMAMA fields)
+   - Reminds the operator to configure pipelines and webhook subscriptions in the FUB UI
+     (pipelines and webhooks aren't fully API-driveable on FUB)
+   - Drip campaigns (7-day, reactivation, reminders, monthly nurture) are owned by
+     BullMQ workers in `queue/` — no extra setup needed here
+
 3. **Step 3: Import** — Bulk CSV lead import
    - Drag-and-drop CSV upload
    - Auto-starts import on file load
@@ -54,7 +55,7 @@ Serves on port 3010 by default.
 The wizard is **first contact** in the onboarding flow:
 
 ```
-Broker lands on wizard → Step 1: Enter keys → Step 2: Auto-configure GHL
+Broker lands on wizard → Step 1: Enter keys → Step 2: Auto-configure FUB
                            ↓
                         Stored locally
                            ↓
@@ -65,7 +66,7 @@ Broker lands on wizard → Step 1: Enter keys → Step 2: Auto-configure GHL
 ```
 
 After step 3 completes:
-- Leads are in GoHighLevel
+- Leads are in FollowUpBoss
 - Webhooks fire when leads are created/messaged
 - Orchestrator (port 3000) receives webhooks
 - AI agent starts qualifying leads
@@ -91,13 +92,13 @@ Rows missing both phone and email are skipped (counted in errors).
 Internal routes called by the frontend:
 
 - `POST /api/verify` — Validate credentials
-  - Input: GHL API key, location ID, Anthropic key
-  - Returns: array of checks (GHL, Anthropic, IDX, ElevenLabs)
-  
-- `POST /api/setup` — Configure GoHighLevel
-  - Input: GHL credentials
+  - Input: FUB API key, Twilio creds, SendGrid key, Supabase URL/key, Anthropic key
+  - Returns: array of checks (FUB, Twilio, SendGrid, Supabase, Anthropic, IDX, ElevenLabs)
+
+- `POST /api/setup` — Configure FollowUpBoss
+  - Input: FUB credentials
   - Returns: step-by-step setup progress
-  - Side effects: creates pipeline, webhooks, campaigns
+  - Side effects: seeds custom fields via `fub-setup/`
   
 - `POST /api/migrate` — Start CSV import
   - Input: credentials, CSV text
@@ -105,7 +106,7 @@ Internal routes called by the frontend:
   - Side effects: spawns worker process
   
 - `POST /api/config` — Save credentials locally (server-side storage)
-  - Input: creds object or flags (ghlConfigured)
+  - Input: creds object or flags (fubConfigured)
   - Returns: saved config
   
 - `GET /api/config` — Retrieve saved config
@@ -116,8 +117,8 @@ Internal routes called by the frontend:
 
 ## Key Features
 
-- **Credential Validation** — Checks GHL API key, Anthropic API key, IDX creds
-- **Auto-Config** — Creates GHL pipeline, custom fields, webhooks in ~30s
+- **Credential Validation** — Checks FUB / Twilio / SendGrid / Supabase / Anthropic / IDX creds
+- **Auto-Config** — Seeds FUB custom fields in ~10s (pipelines + webhooks configured in FUB UI)
 - **Resume Support** — If wizard is closed mid-setup, can resume from last step
 - **Real-time Progress** — EventSource SSE for live import updates
 - **Responsive Design** — Works on mobile for broker onboarding calls
@@ -127,14 +128,14 @@ Internal routes called by the frontend:
 
 - `src/app/page.tsx` — Main wizard component with 3 steps
   - `Step1` — Credentials entry + validation
-  - `Step2` — GHL auto-setup (polling for progress)
+  - `Step2` — FUB auto-setup (polling for progress)
   - `Step3` — CSV upload + import streaming
   
 - `src/app/layout.tsx` — Root layout, Royal LePage branding
   
 - `src/app/api/verify/route.ts` — Credential validation endpoint
   
-- `src/app/api/setup/route.ts` — GHL configuration endpoint
+- `src/app/api/setup/route.ts` — FUB configuration endpoint
   
 - `src/app/api/migrate/route.ts` — CSV import starter
   
@@ -142,21 +143,21 @@ Internal routes called by the frontend:
   
 - `src/app/api/config/route.ts` — Credential storage
   
-- `src/lib/ghl.ts` — GoHighLevel API utilities
+- `src/lib/fub.ts` — FollowUpBoss API utilities
   
 - `src/lib/progress.ts` — In-memory import state tracking
 
 ## Testing the Wizard
 
-To test locally with real GHL:
+To test locally with real FUB:
 
-1. Get test API credentials from GoHighLevel sandbox
-2. Enter them in Step 1
-3. Step 2 should configure a test pipeline
+1. Get a test API key from FUB Settings → API
+2. Enter it (plus Twilio/SendGrid sandbox keys) in Step 1
+3. Step 2 should seed the custom fields
 4. Step 3: create a test CSV with 5 rows
-5. Watch import progress and verify leads appear in GHL
+5. Watch import progress and verify people appear in FUB
 
-For testing without GHL keys:
+For testing without FUB keys:
 - Wizard will show validation errors in Step 1
 - Can still test UI flow by commenting out credential checks (dev mode)
 
@@ -164,7 +165,7 @@ For testing without GHL keys:
 
 - Step 1 validation: <1s
 - Step 2 auto-config: 15-30s (parallel API calls)
-- Step 3 import: ~1000 leads/min with 10 concurrent GHL requests
+- Step 3 import: ~1000 leads/min with 10 concurrent FUB requests
 
 For large CSV files (10k+ rows), import runs as a background job.
 
@@ -174,4 +175,4 @@ For large CSV files (10k+ rows), import runs as a background job.
 - No credentials logged to console
 - WEBHOOK_SECRET auto-generated with crypto.getRandomValues()
 - All API calls use Bearer token in Authorization header
-- HMAC-SHA256 signature verification on GHL webhooks
+- HMAC-SHA256 signature verification on FUB webhooks

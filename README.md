@@ -11,13 +11,15 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 
 | Layer | Technology |
 |-------|-----------|
-| CRM & Messaging | GoHighLevel |
+| CRM | FollowUpBoss (FUB) |
+| SMS | Twilio Programmable Messaging |
+| Email | SendGrid v3 API |
 | AI Orchestration | OpenClaw (`orchestrator/`) |
 | MLS Data | CREA DDF or SimplyRETS (`idx-mcp/`) |
 | Voice AI | ElevenLabs — optional (`elevenlabs-mcp/`) |
-| Showings | ShowingTime or GHL Calendar (`showings-mcp/`) |
+| Showings | ShowingTime or FUB Calendar (`showings-mcp/`) |
 | Agent OS | Homie (`homie-admin-mcp/`) |
-| Queue | BullMQ + Redis (`queue/`) |
+| Queue | BullMQ + Redis (`queue/`) — campaign drip workers |
 | Deploy | Render · Railway · Docker Compose |
 
 ---
@@ -27,22 +29,22 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 ### Core Engine
 | Module | Purpose |
 |--------|---------|
-| `orchestrator/` | Claude agent + GHL webhook server — responds to leads in <60s |
-| `queue/` | BullMQ + Redis — wraps orchestrator for 100k concurrent leads |
+| `orchestrator/` | Claude agent + FUB webhook server + `/internal/send` dispatcher — responds to leads in <60s |
+| `queue/` | BullMQ + Redis — campaign-drip workers (nurture/reactivation/appointment-reminders/monthly) |
 | `monitoring/` | Conversation logging + metrics (Redis, 90-day history) |
 
-### GHL & Data
+### CRM & Data
 | Module | Purpose |
 |--------|---------|
-| `ghl-setup/` | One-time GHL config — custom fields, pipeline, webhooks, campaigns |
-| `data-migration/` | CSV importer — bulk loads up to 100,000 leads |
-| `lead-scoring/` | Daily runner — scores all contacts 0–100, tags hot/warm/cold |
-| `reactivation/` | Scheduled engine — re-engages dormant leads with new listings/price drops |
+| `fub-setup/` | One-time FUB config — seeds custom fields (homie_score + 5 LPMAMA) |
+| `data-migration/` | CSV → FUB importer + FUB → CSV exporter — bulk loads up to 100,000 leads |
+| `lead-scoring/` | Daily runner — scores all contacts 0–100 via FUB, tags hot/warm/cold |
+| `reactivation/` | Scheduled engine — re-engages dormant leads via Twilio SMS with new listings/price drops |
 
 ### MCP Servers (AI Tools)
 | Module | Tools | Purpose |
 |--------|-------|---------|
-| `mcp-server/` | 14 | GoHighLevel CRM — contacts, SMS, pipeline, appointments |
+| `mcp-server/` | 14 | FollowUpBoss CRM — contacts, SMS, pipeline, appointments |
 | `idx-mcp/` | 7 | IDX/MLS listings — search, comparables, price drops |
 | `elevenlabs-mcp/` | 10 | ElevenLabs voice AI — outbound calls, transcripts |
 | `homie-admin-mcp/` | 6 | Agent OS — offers, CMAs, presentations, flyers |
@@ -53,7 +55,7 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 ### Client-Facing
 | Module | Purpose |
 |--------|---------|
-| `setup-wizard/` | **3-step onboarding wizard** — credentials → GHL config → CSV import (no terminal needed) |
+| `setup-wizard/` | **3-step onboarding wizard** — credentials → FUB config → CSV import (no terminal needed) |
 | `idx-website/` | Next.js IDX website — listing search + lead capture |
 | `dashboard/` | Reporting dashboard — funnel, scores, activity feed |
 | `roi-calculator/` | Interactive ROI calculator — sales pitch tool |
@@ -72,13 +74,15 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 
 | Item | Why |
 |------|-----|
-| GoHighLevel API key + Location ID | Core CRM — all contacts, SMS, pipeline live here |
+| FollowUpBoss API key | Core CRM — all contacts, pipeline, notes live here |
+| Twilio Account SID + Auth Token + SMS sender number | Outbound SMS to leads |
+| SendGrid API key + verified sender | Outbound transactional email |
+| Supabase URL + service-role key | Long-term lead state + campaign-enrollment store |
 | IDX agreement (signed with MLS board) | Required to access live listing data via CREA DDF |
 | Lead database CSV export | Up to 100,000 leads imported via `make migrate` |
 | Anthropic API key | Powers the AI agent (Claude opus-4-7) |
-| SMS phone number in GHL | Outbound SMS to leads |
 | ElevenLabs API key *(optional)* | Voice AI outbound calls |
-| ShowingTime API key *(optional)* | Showing management — falls back to GHL calendar |
+| ShowingTime API key *(optional)* | Showing management — falls back to FUB calendar |
 
 ---
 
@@ -87,9 +91,10 @@ Manages 80,000–100,000+ leads via SMS, email, and voice AI.
 ```bash
 # 1. Clone and copy env
 git clone https://github.com/PAMF2/royal-lepage-ai
-cp .env.example .env   # fill in GHL_API_KEY, ANTHROPIC_API_KEY, IDX_API_KEY
+cp .env.example .env   # fill in FUB_API_KEY, TWILIO_*, SENDGRID_API_KEY,
+                       # SUPABASE_URL, ANTHROPIC_API_KEY, IDX_API_KEY
 
-# 2. One-time GHL setup (creates pipeline, webhooks, custom fields)
+# 2. One-time FUB setup (seeds custom fields)
 make setup
 
 # 3. Import leads from CSV
@@ -109,7 +114,10 @@ Or use the no-terminal setup wizard at `http://localhost:3000` after `make dev`.
 ## Onboarding Sequence
 
 ### Prerequisites
-- GoHighLevel Agency account ($297–$497/mo)
+- FollowUpBoss account (Grow tier or above, ~$69–$1,000+/mo depending on agent seats)
+- Twilio account with SMS-capable number ($1/mo + per-message cost)
+- SendGrid account with verified sender domain (free tier covers <100/day)
+- Supabase project (free tier covers up to ~50k rows)
 - IDX agreement signed with real estate board
 - Lead database exported to CSV
 - Server for orchestrator (Render starter ~$7/mo)
@@ -119,7 +127,7 @@ Or use the no-terminal setup wizard at `http://localhost:3000` after `make dev`.
 cd setup-wizard && npm install && npm run dev
 # Open http://localhost:3010
 # Step 1: Enter API keys → Test Connections
-# Step 2: Click "Configure GoHighLevel" → creates pipeline, webhooks, fields
+# Step 2: Click "Configure FollowUpBoss" → seeds custom fields
 # Step 3: Upload CSV → Import leads with live progress bar
 ```
 
@@ -128,35 +136,43 @@ cd setup-wizard && npm install && npm run dev
 ### Step 1 — Configure environment
 ```bash
 cp .env.example .env
-# Fill in: GHL_API_KEY, GHL_LOCATION_ID, ANTHROPIC_API_KEY
+# Fill in: FUB_API_KEY, ANTHROPIC_API_KEY
+# Fill in: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
+# Fill in: SENDGRID_API_KEY, SENDGRID_FROM_EMAIL
+# Fill in: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 # Fill in: IDX_PROVIDER, IDX_API_KEY, IDX_API_SECRET
 # Set:     ORCHESTRATOR_URL (your deployed URL)
-# Set:     WEBHOOK_SECRET (random 32-char string)
+# Set:     FUB_WEBHOOK_SECRET (random 32-char string — HMAC verification)
+# Set:     INTERNAL_SECRET  (random 32-char string — /internal/send auth)
 ```
 
-### Step 2 — GHL one-time setup
+### Step 2 — FUB one-time setup
 ```bash
 make setup
-# Creates in GHL automatically:
-#   ✓ Custom fields: homie_score + 6 LPMAMA fields + IDX tracking fields
-#   ✓ Custom values: company name, agent name, booking link, etc.
-#   ✓ Pipeline: New Lead → Attempted → Contacted → Qualified → Booked → Closed
-#   ✓ Webhooks: ContactCreate + InboundMessage → orchestrator
-#   ✓ Campaigns: 7-Day Drip, Reactivation, Appointment Reminder, Post-Showing, Nurture
-# Idempotent — safe to re-run
+# Seeds in FUB automatically:
+#   ✓ Custom fields: homie_score + 5 LPMAMA fields (city, budget, motivation,
+#     mortgage_status, timeline)
+# Idempotent — safe to re-run.
+#
+# Note: Pipelines, campaigns, and webhooks are configured directly in FUB's UI
+# (Settings → Custom Fields / Pipelines / Webhooks). The orchestrator subscribes
+# to peopleCreated / peopleUpdated / conversationsCreated webhook events.
+# Drip campaigns are owned by the BullMQ queue/ workers, not FUB.
 ```
 
 ### Step 3 — Verify all connections
 ```bash
 make verify
 # Checks all APIs in parallel:
-#   ✓ GHL          Connected — location name
+#   ✓ FUB          Connected — account name
+#   ✓ Twilio       Account SID + Auth Token valid, sender number active
+#   ✓ SendGrid     API key valid, sender domain verified
+#   ✓ Supabase     URL + service-role key reachable
 #   ✓ Anthropic    API key valid
 #   ✓ IDX          Credentials present
 #   ✓ Redis        Connected
 #   ✓ ElevenLabs   API key valid (or: not configured — optional)
 #   ✓ Custom Fields homie_score + LPMAMA fields present
-#   ✓ Webhooks     ContactCreate + InboundMessage registered
 # Exits 1 if any required check fails
 ```
 
@@ -224,7 +240,7 @@ make health      # Check all services are up
 
 ### Inbound Lead (automatic)
 ```
-Lead submits form → GHL creates contact → webhook fires
+Lead submits form → FUB creates person → peopleCreated webhook fires
 → orchestrator queues job → Claude agent runs
 → SMS sent in <60s → LPMAMA qualification begins
 → IDX listings surfaced → appointment booked
@@ -250,7 +266,7 @@ Agent prompts Homie → draft_offer / generate_cma / request_showing
 
 | Phase | Modules |
 |-------|---------|
-| **1 — Core** | `orchestrator` · `ghl-setup` · `data-migration` · `idx-mcp` |
+| **1 — Core** | `orchestrator` · `fub-setup` · `data-migration` · `queue` · `idx-mcp` |
 | **2 — Enhancement** | `reactivation` · `lead-scoring` · `dashboard` · `campaign-templates` |
 | **3 — Advanced AI** | `elevenlabs-mcp` · `homie-admin-mcp` · `showings-mcp` · `vendor-mcp` · `deal-analysis-mcp` · `idx-website` |
 | **4 — Scale** | `queue` · `monitoring` · `roi-calculator` · `sales-deck` |
@@ -261,7 +277,7 @@ Agent prompts Homie → draft_offer / generate_cma / request_showing
 
 ```bash
 make help        # Show all commands
-make setup       # GHL one-time config
+make setup       # FUB one-time config (seed custom fields)
 make verify      # Pre-flight connection check
 make migrate     # Import leads (LEADS_FILE=path)
 make dev         # Start full stack (Docker)

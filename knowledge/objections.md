@@ -59,7 +59,7 @@
 **Script:**
 "Absolutely — I'm removing you from all communications right now. I'm sorry for any inconvenience. You won't hear from us again unless you reach out. Take care!"
 
-**Action:** IMMEDIATE opt-out. Apply `dnc` tag in GHL. Stop all automated follow-ups. Log opt-out with timestamp. This is non-negotiable — compliance is mandatory.
+**Action:** IMMEDIATE opt-out. Apply `dnc` tag in FUB. Stop all automated follow-ups. Log opt-out with timestamp. This is non-negotiable — compliance is mandatory.
 
 ---
 

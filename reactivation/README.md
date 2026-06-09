@@ -18,16 +18,19 @@ Result: Dormant leads get a personalized message about a listing that matches th
 ## Environment Variables
 
 Required:
-- `GHL_API_KEY` — GoHighLevel API key
-- `GHL_LOCATION_ID` — Your GHL location
+- `FUB_API_KEY` — FollowUpBoss API key
+- `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` — Twilio SMS sender
 - `ANTHROPIC_API_KEY` — Claude API key for message generation
 
 Optional:
 - `IDX_API_KEY` — IDX provider API key (for property lookups)
 - `IDX_API_SECRET` — IDX provider secret
-- `GHL_CAMPAIGN_REACTIVATION` — Campaign ID to enroll leads in (optional)
 - `DORMANT_DAYS` — Days since last contact to mark as dormant (default: 30)
 - `MAX_PER_RUN` — Max leads to process per run (default: 200)
+
+Note: Campaign enrollment is no longer handled here — the orchestrator's
+`/enqueue-campaign` route owns the BullMQ drip workers in `queue/`. This
+runner sends a one-off Twilio SMS per dormant lead.
 
 ## Running
 
@@ -67,10 +70,10 @@ spec:
             image: node:20
             command: ["npm", "run", "start"]
             env:
-            - name: GHL_API_KEY
+            - name: FUB_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: ghl-secrets
+                  name: fub-secrets
                   key: api-key
             # ... other env vars
           restartPolicy: OnFailure
@@ -96,7 +99,7 @@ Combined, they ensure:
 ## Workflow
 
 1. **Find Dormant Leads**
-   - Query GHL for all contacts sorted by `dateLastContacted`
+   - Query FUB for all people sorted by `dateLastContacted`
    - Filter to exclude:
      - DNC/do-not-contact tags
      - "handed-off" (assigned to agent)
@@ -117,10 +120,9 @@ Combined, they ensure:
    - Example output: "Hey John, catching up — just saw a new listing in Oakville that matches your criteria. Still actively looking? Let's chat 🏡"
 
 4. **Send & Log**
-   - Send SMS via GHL
-   - Add note to contact with message + trigger reason
-   - Enroll in reactivation campaign (if campaign ID set)
-   - Sleep 1.2s between contacts to respect GHL rate limits (5 req/s max)
+   - Send SMS via Twilio
+   - Add note to FUB person with message + trigger reason
+   - Sleep 1.2s between contacts (folga vs FUB 250 req/10s sliding window)
 
 5. **Report**
    - Print summary: "Reactivated: 156/200, Failed: 3"
@@ -140,7 +142,7 @@ Done. Reactivated: 200 | Failed: 0
 ## Code Structure
 
 - `src/index.ts` — Main runner with async/await flow control
-  - `getDormantLeads()` — Query GHL, filter
+  - `getDormantLeads()` — Query FUB, filter
   - `getMatchingListings(contact)` — IDX search
   - `generateReactivationMessage(contact, trigger, snippet)` — Claude call
   - `run()` — Orchestrates the workflow
@@ -149,8 +151,9 @@ Done. Reactivated: 200 | Failed: 0
 
 ## Rate Limiting & Throttling
 
-- GHL API: 5 requests/second limit
+- FUB API: 250 requests per 10s sliding window
   - 1.2s delay between contacts → ~50 leads per minute → 200 leads = 4+ minutes
+  - Twilio outbound is the practical bottleneck (~1 msg/sec default)
 - IDX API: Depends on provider (usually 100 req/min)
   - Batches requests, usually fast
 - Anthropic API: No strict rate limit, but can be slow on claude-opus
@@ -187,7 +190,7 @@ Each reactivation run is logged to the monitoring service if it supports backgro
 
 Failed contacts are logged with error details:
 ```
-Error for contact abc123: GHL 401 Unauthorized
+Error for contact abc123: FUB 401 Unauthorized
 ```
 
 ## Integration with Workflows
@@ -231,25 +234,25 @@ const message = `Hi ${name}, we just found a new listing in ${city} that matches
 
 ## Testing Locally
 
-To test with real GHL + IDX:
+To test with real FUB + IDX:
 
 1. Set environment variables
 2. Run: `npm run start`
-3. Check GHL contact logs for new notes and SMSes
+3. Check FUB person notes for new entries and outbound SMSes in Twilio
 4. Verify monitoring service received logs
 
 For a dry run (no API calls):
 - Modify `src/index.ts` to log instead of sending
-- Comment out `ghl()` calls
+- Comment out the `fub()` and Twilio fetch calls
 - Run to see which leads would be contacted
 
 ## Troubleshooting
 
-**"Required: GHL_API_KEY, ..."** — Missing environment variables, set them and retry.
+**"Required: FUB_API_KEY, ..."** — Missing environment variables, set them and retry.
 
-**"Found 0 dormant leads"** — Either all leads are recent, or all have DNC tags. Check GHL directly.
+**"Found 0 dormant leads"** — Either all leads are recent, or all have DNC tags. Check FUB directly.
 
-**"Error for contact xyz: GHL 401"** — API key expired or wrong location ID. Verify credentials.
+**"Error for contact xyz: FUB 401"** — API key expired. Verify credentials.
 
 **SMSes not sent but no errors** — Check if `phone` field is set on contacts. Contacts without phone are skipped.
 

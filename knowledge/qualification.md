@@ -20,7 +20,7 @@ Homie should gather all 6 dimensions naturally through conversation — never as
 - "Is proximity to work or transit important for you?"
 - "Are school districts a factor in your search?"
 
-**CRM field:** `city` (custom field in GHL)
+**CRM field:** `city` (custom field in FUB)
 
 ---
 
@@ -38,7 +38,7 @@ Homie should gather all 6 dimensions naturally through conversation — never as
 - "Have you had a chance to connect with a lender or mortgage broker yet?"
 - "Are you thinking more condos in the $500–700K range, or detached homes?"
 
-**CRM field:** `budget` (custom field in GHL)
+**CRM field:** `budget` (custom field in FUB)
 
 ---
 
@@ -55,7 +55,7 @@ Homie should gather all 6 dimensions naturally through conversation — never as
 - "Is this for a growing family, or more of an investment play?"
 - "Is there a specific reason you're looking now versus waiting?"
 
-**CRM field:** `motivation` (custom field in GHL)
+**CRM field:** `motivation` (custom field in FUB)
 
 ---
 
@@ -96,7 +96,7 @@ Homie should gather all 6 dimensions naturally through conversation — never as
 - "Do you have a pre-approval in place, or is that something you're still working on?"
 - "Are you a first-time buyer? There are some great programs that might apply to you."
 
-**CRM field:** `mortgage_status` (custom field in GHL — values: `pre-approved`, `pre-qualified`, `not-started`, `cash-buyer`)
+**CRM field:** `mortgage_status` (custom field in FUB — values: `pre-approved`, `pre-qualified`, `not-started`, `cash-buyer`)
 
 ---
 
@@ -114,9 +114,9 @@ Homie should gather all 6 dimensions naturally through conversation — never as
 - "Are mornings or evenings generally better for you?"
 - "Would you prefer a virtual meeting or in-person?"
 
-**Booking:** Appointments are booked through the agent's GoHighLevel calendar. Homie should confirm date, time, and contact method, then log in GHL.
+**Booking:** Appointments are booked through the agent's FollowUpBoss calendar. Homie should confirm date, time, and contact method, then log in FUB.
 
-**CRM field:** `timeline` (custom field in GHL — also tracked via appointment tags and GHL calendar)
+**CRM field:** `timeline` (custom field in FUB — also tracked via appointment tags and FUB calendar)
 
 ---
 

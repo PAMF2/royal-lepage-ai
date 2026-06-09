@@ -6,7 +6,7 @@ Automated lead scoring engine that ranks all contacts 0-100 and assigns tiers (h
 
 Lead scoring runs daily (or on-demand) and:
 
-1. **Fetches all contacts** from GoHighLevel
+1. **Fetches all people** from FollowUpBoss
 2. **Scores each lead** 0-100 based on buying intent signals
 3. **Tags leads** with tier (score-hot, score-warm, score-cold)
 4. **Stores score** in custom field homie_score for sorting/filtering
@@ -60,8 +60,7 @@ How much qualification data do we have?
 ## Environment Variables
 
 Required:
-- `GHL_API_KEY` — GoHighLevel API key
-- `GHL_LOCATION_ID` — Your GHL location
+- `FUB_API_KEY` — FollowUpBoss API key
 
 Optional:
 - None; all settings are embedded in scoring logic
@@ -100,9 +99,9 @@ CMD ["npm", "run", "score"]
 
 ## Workflow
 
-1. **Fetch Contacts** (paginated)
-   - GHL API: `GET /contacts?locationId={id}&limit=100&page=1`
-   - Loop through all pages until no contacts returned
+1. **Fetch People** (paginated)
+   - FUB API: `GET /people?limit=100&offset=0` (or `next` cursor)
+   - Loop through all pages until no people returned
 
 2. **Score Each Contact**
    ```javascript
@@ -128,8 +127,8 @@ CMD ["npm", "run", "score"]
    - Parallel requests (max 10 per batch)
 
 5. **Respect Rate Limits**
-   - GHL: 5 req/sec limit
-   - 1.2s delay between batches to stay safe
+   - FUB: 250 requests per 10s sliding window (`crm.ts` enforces this)
+   - 1.2s delay between batches to stay well under the ceiling
 
 ## Output Example
 
@@ -150,7 +149,7 @@ Cold (<40): 433 leads (35%)
 
 ## Custom Fields Required
 
-The scorer assumes these custom fields exist in your GHL location:
+The scorer assumes these custom fields exist in your FUB account (seeded by `fub-setup/`):
 
 - `homie_score` — Integer 0-100 (created by setup wizard)
 - `city` — Lead's target area
@@ -164,7 +163,7 @@ If missing, that dimension contributes 0 points (lead still scored on other fact
 ## Code Structure
 
 - `src/index.ts` — Main runner
-  - Fetches all contacts from GHL
+  - Fetches all people from FUB
   - Calls scoreContact() for each
   - Updates tags and custom field
   - Progress counter
@@ -204,7 +203,7 @@ If missing, that dimension contributes 0 points (lead still scored on other fact
 
 ## Filtering & Reporting
 
-In GHL, filter by tag:
+In FUB, filter by tag:
 - **Immediate action**: tag = "score-hot"
 - **Regular follow-up**: tag = "score-warm"
 - **Nurture**: tag = "score-cold"
@@ -265,7 +264,7 @@ if (c.source === "cold-call") score -= 5;  // Cold leads worth less
 
 ## Performance
 
-- 1000 contacts: ~15 minutes (including GHL API calls)
+- 1000 contacts: ~15 minutes (including FUB API calls)
 - 10,000 contacts: ~150 minutes (~2.5 hours)
 - For faster scoring, increase concurrency in `index.ts`:
 
@@ -294,17 +293,17 @@ Tests:
 Watch for:
 - **All leads cold**: Maybe scoring is too strict (lower thresholds)
 - **All leads hot**: Maybe too lenient (raise thresholds)
-- **Many errors**: Check GHL API key, location ID, custom field names
+- **Many errors**: Check FUB API key, custom field names
 
 ## Troubleshooting
 
-**"Required: GHL_API_KEY, GHL_LOCATION_ID"** — Set env vars.
+**"Required: FUB_API_KEY"** — Set env vars.
 
-**"0/0 contacts scored"** — No contacts in GHL yet. Import CSV first.
+**"0/0 contacts scored"** — No people in FUB yet. Import CSV first.
 
 **Custom field homie_score is missing** — Run setup wizard Step 2 to create it.
 
-**Scoring is very slow** — Check GHL API status or reduce batch concurrency.
+**Scoring is very slow** — Check FUB API status or reduce batch concurrency.
 
 **All contacts getting the same score** — Check that custom fields are being populated (city, budget, etc.).
 
@@ -313,7 +312,7 @@ Watch for:
 Set up daily alerts:
 
 ```bash
-# Alert if all leads are low-scoring (broken scoring or empty GHL)
+# Alert if all leads are low-scoring (broken scoring or empty FUB)
 low_count=$(curl -s http://localhost:3001/api/leads?score=40 | jq 'length')
 if [[ $low_count -gt 500 ]]; then
   alert "WARNING: Most leads scoring cold. Check scoring logic."

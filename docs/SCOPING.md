@@ -25,7 +25,11 @@ This system extends beyond Verse by integrating directly into brokerage workflow
 
 | Layer | Technology |
 |-------|-----------|
-| CRM & Messaging | GoHighLevel |
+| CRM | FollowUpBoss |
+| SMS | Twilio Programmable Messaging |
+| Email | SendGrid v3 API |
+| Long-term state | Supabase (Postgres + RLS) |
+| Campaign queue | BullMQ + Redis |
 | AI Orchestration | OpenClaw (custom agent harness) |
 | MLS Data | IDX integration (board-approved RETS/Web API) |
 | Voice AI (Optional) | ElevenLabs |
@@ -106,11 +110,12 @@ This enables:
 
 ### 4.2 CRM Setup
 
-Using GoHighLevel:
+Using FollowUpBoss:
 - Contact database (up to 100,000 leads)
-- Pipeline stages: New → Engaged → Qualified → Booked → Closed
-- SMS/email infrastructure
-- Campaign automation
+- Pipeline stages: New → Engaged → Qualified → Booked → Closed (configured in FUB UI)
+- SMS via Twilio (direct integration, not through FUB)
+- Email via SendGrid (direct integration, not through FUB)
+- Campaign automation owned by BullMQ workers (`queue/`)
 
 ### 4.3 Data Migration
 
@@ -167,7 +172,7 @@ Performance:
 ## 7. Deliverables
 
 ### Phase 1 — Core System (2–4 weeks)
-- CRM setup (GoHighLevel)
+- CRM setup (FollowUpBoss + Twilio + SendGrid + Supabase)
 - Lead ingestion + segmentation
 - SMS AI agent deployed
 - Basic IDX integration

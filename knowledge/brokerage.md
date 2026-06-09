@@ -22,10 +22,10 @@ This Homie AI system is deployed for a specific Royal LePage brokerage. It acts 
 
 ## CRM System
 
-- **Platform**: GoHighLevel (GHL)
-- All leads are captured and tracked in GoHighLevel
+- **Platform**: FollowUpBoss (FUB)
+- All leads are captured and tracked in FollowUpBoss
 - Conversations, tags, and custom fields sync automatically
-- Agents access lead profiles through the GHL dashboard
+- Agents access lead profiles through the FUB dashboard
 
 ## Brand Voice
 
@@ -38,5 +38,5 @@ This Homie AI system is deployed for a specific Royal LePage brokerage. It acts 
 ## Key Contacts
 
 - Leads are routed to the listing or buyer agent assigned to their area
-- Appointments are booked directly through the agent's calendar in GHL
+- Appointments are booked directly through the agent's calendar in FUB
 - Escalate complex or legal questions to a licensed agent immediately
