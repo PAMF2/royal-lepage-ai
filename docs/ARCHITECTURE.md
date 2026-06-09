@@ -41,7 +41,7 @@ Referrals ────┘    ▲             └──────────�
 7. Nurture (not ready, stay warm)
 8. Closed Won / Closed Lost
 
-### Custom Fields (seeded by `fub-setup/`)
+### Custom Fields (6 total — seeded by `fub-setup/`)
 - `homie_score` — 0-100 lead score (updated daily by `lead-scoring/`)
 - `lpmama_city` — Location dimension
 - `lpmama_budget` — Price dimension
