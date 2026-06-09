@@ -138,6 +138,47 @@ describe("handleRequest — POST /enqueue", () => {
   });
 });
 
+describe("handleRequest — POST /enqueue-campaign", () => {
+  beforeEach(() => {
+    vi.stubEnv("QUEUE_SECRET", "test-secret");
+    mockAdd.mockResolvedValue({ id: "p-1:camp-7" });
+  });
+
+  it("returns 401 when x-queue-secret is missing", async () => {
+    const req = new Request("http://localhost/enqueue-campaign", {
+      method: "POST",
+      body: JSON.stringify({ personId: "p-1", campaignId: "camp-7" }),
+    });
+    expect((await handleRequest(req)).status).toBe(401);
+  });
+
+  it("returns 400 when body is missing personId or campaignId", async () => {
+    const req = new Request("http://localhost/enqueue-campaign", {
+      method: "POST",
+      headers: { "x-queue-secret": "test-secret" },
+      body: JSON.stringify({ personId: "p-1" }),
+    });
+    expect((await handleRequest(req)).status).toBe(400);
+  });
+
+  it("enqueues with deterministic jobId = personId:campaignId", async () => {
+    const req = new Request("http://localhost/enqueue-campaign", {
+      method: "POST",
+      headers: { "x-queue-secret": "test-secret" },
+      body: JSON.stringify({ personId: "p-1", campaignId: "camp-7" }),
+    });
+    const res = await handleRequest(req);
+    expect(res.status).toBe(200);
+    expect(mockAdd).toHaveBeenCalledWith(
+      "camp-7",
+      expect.objectContaining({ personId: "p-1", campaignId: "camp-7" }),
+      { jobId: "p-1:camp-7" },
+    );
+    const body = await res.json();
+    expect(body.jobId).toBe("p-1:camp-7");
+  });
+});
+
 describe("handleRequest — method guard", () => {
   it("should return 405 for GET requests", async () => {
     const req = new Request("http://localhost/health", { method: "GET" });

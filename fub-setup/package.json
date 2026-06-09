@@ -1,16 +1,13 @@
 {
-  "name": "royal-lepage-ghl-setup",
+  "name": "royal-lepage-fub-setup",
   "version": "1.0.0",
-  "description": "One-time GHL setup script — creates pipeline, webhooks, and campaigns",
+  "description": "One-time FUB setup — seeds custom fields used by the orchestrator and lead-scoring modules.",
   "type": "module",
   "scripts": {
     "setup": "tsx src/index.ts",
     "verify": "tsx src/verify.ts",
     "build": "tsc",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "ioredis": "^5.3.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -14,7 +14,10 @@ const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? "5");
 const connection = createConnection();
 
 async function processJob(job: Job) {
-  const res = await fetch(`${ORCHESTRATOR_URL}/webhook/ghl`, {
+  // Forward to the new FUB-shaped webhook endpoint added in step F. The job
+  // data already arrives in the FUB envelope `{ event, data }` from the
+  // /enqueue route — webhook.ts dispatches by event type.
+  const res = await fetch(`${ORCHESTRATOR_URL}/webhook/fub`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

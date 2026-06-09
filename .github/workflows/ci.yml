@@ -18,7 +18,7 @@ jobs:
           - reactivation
           - lead-scoring
           - data-migration
-          - ghl-setup
+          - fub-setup
           - mcp-server
           - elevenlabs-mcp
           - idx-mcp
@@ -96,6 +96,8 @@ jobs:
           - dashboard
           - reactivation
           - data-migration
+          - fub-setup
+          - queue
 
     steps:
       - uses: actions/checkout@v4

@@ -1,93 +1,142 @@
 #!/usr/bin/env node
 /**
- * Lead Scoring Runner — scores all contacts in GHL and tags them accordingly
- * Usage: npx tsx src/index.ts
- * Run on a schedule (daily cron) to keep scores fresh
+ * Lead Scoring Runner — scores all FUB people and writes the score back to
+ * the `homie_score` custom field. Tags are reconciled to a single tier tag.
+ *
+ * Migrated from GHL to FUB in step K of the replace-ghl branch.
+ *
+ * Usage: FUB_API_KEY=... npx tsx src/index.ts
+ * Run on a schedule (daily cron) to keep scores fresh.
+ *
+ * FUB rate limit: 250 req/10s — we paginate at 100 per page and sleep 1.2s
+ * between pages, same conservative cadence as the original GHL runner.
+ *
+ * TODO: verify FUB v1 endpoint shapes once API key arrives:
+ *   - GET  /people?limit=&offset=&fields= for pagination
+ *   - PUT  /people/{id} for tag reconciliation + custom field set
+ *   - Custom field shape on PUT — assumed flat: { homie_score: 73 }
+ *     (the previous GHL shape was nested customField[{id, value}])
  */
 
 import { scoreContact, scoreTier } from "./scoring.js";
 import type { Contact } from "./scoring.js";
 
-const GHL_API_KEY = process.env.GHL_API_KEY!;
-const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID!;
-const BASE = "https://services.leadconnectorhq.com";
+const FUB_API_KEY = process.env.FUB_API_KEY ?? "";
+const FUB_BASE = "https://api.followupboss.com/v1";
 
-if (!GHL_API_KEY || !GHL_LOCATION_ID) {
-  console.error("Required: GHL_API_KEY, GHL_LOCATION_ID");
+if (!FUB_API_KEY) {
+  console.error("Required: FUB_API_KEY");
   process.exit(1);
 }
 
-async function ghl(method: string, path: string, body?: unknown) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${GHL_API_KEY}`,
-      "Content-Type": "application/json",
-      Version: "2021-07-28",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`GHL ${res.status}: ${await res.text()}`);
-  return res.json();
+function basicAuthHeader(): string {
+  return `Basic ${Buffer.from(`${FUB_API_KEY}:`).toString("base64")}`;
 }
 
-async function sleep(ms: number) {
+async function fub(method: string, path: string, body?: unknown): Promise<unknown> {
+  const res = await fetch(`${FUB_BASE}${path}`, {
+    method,
+    headers: {
+      Authorization: basicAuthHeader(),
+      "Content-Type": "application/json",
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`FUB ${res.status}: ${await res.text()}`);
+  return res.status === 204 ? undefined : res.json();
+}
+
+interface FubPersonRaw {
+  id: string | number;
+  firstName?: string;
+  lastName?: string;
+  phones?: { value: string }[];
+  emails?: { value: string }[];
+  tags?: string[];
+  created?: string;
+  homie_score?: number | string;
+  lpmama_city?: string;
+  lpmama_budget?: string;
+  lpmama_timeline?: string;
+  lpmama_motivation?: string;
+  lpmama_mortgage_status?: string;
+}
+
+interface FubPeoplePage {
+  people?: FubPersonRaw[];
+}
+
+/** Convert a FUB person record into the Contact shape scoring.ts expects. */
+function toContact(p: FubPersonRaw): Contact {
+  const customField = [
+    p.lpmama_city ? { id: "lpmama_city", value: p.lpmama_city } : null,
+    p.lpmama_budget ? { id: "lpmama_budget", value: p.lpmama_budget } : null,
+    p.lpmama_timeline ? { id: "lpmama_timeline", value: p.lpmama_timeline } : null,
+    p.lpmama_motivation ? { id: "lpmama_motivation", value: p.lpmama_motivation } : null,
+    p.lpmama_mortgage_status
+      ? { id: "lpmama_mortgage_status", value: p.lpmama_mortgage_status }
+      : null,
+  ].filter((x): x is { id: string; value: string } => x !== null);
+
+  return {
+    id: String(p.id),
+    firstName: p.firstName,
+    lastName: p.lastName,
+    phone: p.phones?.[0]?.value,
+    email: p.emails?.[0]?.value,
+    tags: p.tags ?? [],
+    dateAdded: p.created,
+    customField,
+  };
+}
+
+async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function run() {
-  let page = 1;
+async function run(): Promise<void> {
+  let offset = 0;
+  const limit = 100;
   let total = 0;
   let scored = 0;
 
   console.log("Starting lead scoring run...\n");
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
-    const data = await ghl(
+    const page = (await fub(
       "GET",
-      `/contacts/?locationId=${GHL_LOCATION_ID}&limit=100&page=${page}`,
-    );
-    const contacts: Contact[] = data.contacts ?? [];
-    if (contacts.length === 0) break;
-    total += contacts.length;
+      `/people?limit=${limit}&offset=${offset}`,
+    )) as FubPeoplePage;
+    const rawPeople = page.people ?? [];
+    if (rawPeople.length === 0) break;
+    total += rawPeople.length;
 
     await Promise.all(
-      contacts.map(async (contact) => {
+      rawPeople.map(async (raw) => {
+        const contact = toContact(raw);
         const score = scoreContact(contact);
         const { tag, remove } = scoreTier(score);
 
-        // Remove old score tags, add new one
+        // Reconcile tier tags: ensure `tag` is present, drop the others.
         const currentTags = contact.tags ?? [];
-        const tagsToAdd = currentTags.includes(tag) ? [] : [tag];
-        const tagsToRemove = remove.filter((t) => currentTags.includes(t));
+        const filtered = currentTags.filter((t) => !remove.includes(t));
+        const nextTags = filtered.includes(tag) ? filtered : [...filtered, tag];
 
-        const updates: Promise<unknown>[] = [];
-        if (tagsToAdd.length)
-          updates.push(
-            ghl("POST", `/contacts/${contact.id}/tags`, { tags: tagsToAdd }),
-          );
-        if (tagsToRemove.length)
-          updates.push(
-            ghl("DELETE", `/contacts/${contact.id}/tags`, {
-              tags: tagsToRemove,
-            }),
-          );
-
-        // Store score in custom field
-        updates.push(
-          ghl("PUT", `/contacts/${contact.id}`, {
-            customField: [{ id: "homie_score", value: String(score) }],
-          }),
-        );
-
-        await Promise.all(updates);
+        // FUB PUT /people/{id} accepts a single body that updates both tags
+        // and the homie_score custom field in one round-trip — saves one
+        // request per contact vs three under GHL.
+        await fub("PUT", `/people/${contact.id}`, {
+          tags: nextTags,
+          homie_score: score,
+        });
         scored++;
       }),
     );
 
     process.stdout.write(`\r  Scored ${scored}/${total} contacts...`);
-    page++;
-    await sleep(1200); // respect GHL rate limits
+    offset += limit;
+    await sleep(1200); // respect FUB rate limits (250/10s)
   }
 
   console.log(`\n\nDone. Scored ${scored} contacts total.`);
